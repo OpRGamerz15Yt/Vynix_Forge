@@ -1,0 +1,26 @@
+{
+  "name": "vynix-forge-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "archiver": "^6.0.2",
+    "better-sqlite3": "^13.0.3",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "node-fetch": "^2.7.0",
+    "stripe": "^22.6.1"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1",
+    "supertest": "^7.2.2"
+  }
+}

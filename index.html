@@ -1,0 +1,1440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vynix Forge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#131110; --panel:#1c1917; --panel-raised:#262220;
+  --border:#362f2a; --border-soft:#2a2521;
+  --text:#ede8e1; --dim:#a89e93; --faint:#6f665c;
+  --ember:#c4632e; --ember-bright:#e07a3f; --ember-dim:#7a3f1f;
+  --copper:#5b7065; --copper-bright:#7c9788;
+  --danger:#b8503f; --warn:#c99a3f;
+  --font-display:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --font-body:"Inter",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;}
+html,body,#app{height:100%;margin:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+a{color:inherit;}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+::selection{background:var(--ember-dim);color:var(--text);}
+.h-screen-flex{display:flex;height:100vh;}
+.sidebar{width:240px;flex-shrink:0;border-right:1px solid var(--border-soft);display:flex;flex-direction:column;}
+.sidebar-header{height:64px;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid var(--border-soft);}
+.flame-badge{width:28px;height:28px;border-radius:6px;background:rgba(196,99,46,.15);display:flex;align-items:center;justify-content:center;font-size:15px;}
+.brand{font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:-.01em;}
+.btn-primary{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:6px;background:var(--ember);color:var(--bg);font-weight:500;font-size:13px;padding:10px 14px;border:none;}
+.btn-primary:hover{background:var(--ember-bright);}
+.btn-secondary{border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:13px;padding:8px 14px;}
+.btn-secondary:hover{border-color:var(--faint);}
+.btn-ghost{background:none;border:none;color:var(--dim);font-size:13px;}
+.btn-ghost:hover{color:var(--text);}
+.nav{flex:1;padding:16px 12px 0;display:flex;flex-direction:column;gap:2px;}
+.nav-item{display:flex;align-items:center;gap:10px;border-radius:6px;padding:9px 12px;font-size:13.5px;color:var(--dim);text-decoration:none;border:none;background:none;text-align:left;width:100%;}
+.nav-item:hover{background:var(--panel);color:var(--text);}
+.nav-item.active{background:var(--panel-raised);color:var(--text);}
+.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border-soft);font-size:11px;color:var(--faint);line-height:1.5;}
+.main{flex:1;min-width:0;overflow-y:auto;}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;padding:32px 32px 24px;border-bottom:1px solid var(--border-soft);}
+.page-title{font-family:var(--font-display);font-weight:600;font-size:20px;letter-spacing:-.01em;margin:0;}
+.page-desc{margin:4px 0 0;font-size:13.5px;color:var(--dim);max-width:520px;}
+.page-body{padding:24px 32px;}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:32px;}
+.stat-block{border:1px solid var(--border-soft);border-radius:8px;padding:14px 16px;}
+.stat-label{font-size:11.5px;color:var(--faint);margin:0 0 4px;}
+.stat-value{font-family:var(--font-display);font-size:24px;font-weight:600;margin:0;font-variant-numeric:tabular-nums;}
+.panel{border:1px solid var(--border-soft);border-radius:8px;}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border-soft);}
+.panel-title{font-family:var(--font-display);font-weight:500;font-size:13.5px;margin:0;}
+.empty-state{display:flex;flex-direction:column;align-items:center;text-align:center;padding:60px 24px;}
+.empty-icon{width:44px;height:44px;border-radius:8px;background:var(--panel-raised);display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:20px;color:var(--faint);}
+.empty-title{font-family:var(--font-display);font-weight:500;font-size:15px;margin:0;}
+.empty-desc{margin:6px 0 0;font-size:13px;color:var(--faint);max-width:280px;}
+.list-item{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border-soft);}
+.list-item:last-child{border-bottom:none;}
+table{width:100%;border-collapse:collapse;font-size:14px;}
+th{text-align:left;font-weight:400;font-size:11.5px;color:var(--faint);padding:10px 16px;border-bottom:1px solid var(--border-soft);}
+td{padding:12px 16px;border-bottom:1px solid var(--border-soft);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--panel);}
+.field{margin-bottom:16px;}
+.field-label{display:block;font-size:12.5px;color:var(--dim);margin-bottom:6px;}
+.field-hint{margin-top:5px;font-size:11px;color:var(--faint);}
+.input,select.input,textarea.input{width:100%;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:9px 12px;font-size:14px;outline:none;}
+.input:focus{border-color:var(--ember-bright);}
+textarea.input{resize:none;}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border-soft);padding-bottom:12px;margin-bottom:16px;flex-wrap:wrap;}
+.tab-btn{padding:7px 12px;border-radius:6px;font-size:13px;border:none;background:none;color:var(--dim);}
+.tab-btn.active{background:var(--panel-raised);color:var(--text);}
+.tab-btn:hover{color:var(--text);}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+.modal{width:100%;max-width:520px;border-radius:8px;border:1px solid var(--border);background:var(--panel);max-height:90vh;overflow-y:auto;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border-soft);}
+.modal-title{font-family:var(--font-display);font-weight:600;font-size:15px;margin:0;}
+.modal-body{padding:16px 20px;}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--border-soft);}
+.template-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.template-card{text-align:left;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text);padding:10px 12px;}
+.template-card.selected{border-color:var(--ember-bright);background:rgba(196,99,46,.1);}
+.template-card:hover{border-color:var(--faint);}
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;text-transform:capitalize;}
+.badge-ok{color:var(--copper-bright);background:rgba(91,112,101,.15);}
+.badge-fail{color:var(--danger);background:rgba(184,80,63,.15);}
+.badge-warn{color:var(--warn);background:rgba(201,154,63,.15);}
+.badge-neutral{color:var(--faint);background:var(--panel-raised);}
+.studio-flex{display:flex;height:100vh;}
+.studio-nav-item{display:block;border-radius:6px;padding:9px 12px;font-size:13px;color:var(--dim);text-decoration:none;border:none;background:none;width:100%;text-align:left;}
+.studio-nav-item:hover{background:var(--panel);color:var(--text);}
+.studio-nav-item.active{background:var(--panel-raised);color:var(--text);}
+.studio-body{flex:1;min-width:0;overflow-y:auto;padding:32px;max-width:720px;}
+.dot{width:6px;height:6px;border-radius:99px;display:inline-block;}
+.dot-ok{background:var(--copper-bright);}
+.dot-fail{background:var(--danger);}
+.dot-warn{background:var(--warn);}
+.dot-neutral{background:var(--faint);}
+.toggle{display:flex;align-items:center;justify-content:space-between;border-radius:6px;border:1px solid var(--border-soft);padding:10px 12px;background:none;color:var(--text);width:100%;font-size:13px;}
+.toggle:hover{border-color:var(--faint);}
+.toggle-track{position:relative;width:36px;height:20px;border-radius:99px;background:var(--panel-raised);flex-shrink:0;}
+.toggle-track.on{background:var(--ember);}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:99px;background:var(--text);transition:transform .15s;}
+.toggle-track.on .toggle-thumb{transform:translateX(16px);}
+.upload-box{display:flex;align-items:center;gap:10px;border:1px dashed var(--border);border-radius:6px;padding:10px 12px;cursor:pointer;}
+.upload-box:hover{border-color:var(--faint);}
+.thumb{width:36px;height:36px;border-radius:5px;object-fit:cover;flex-shrink:0;background:var(--panel-raised);}
+.pill-icon{width:36px;height:36px;border-radius:5px;background:var(--panel-raised);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--faint);}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.log-box{background:var(--bg);border:1px solid var(--border-soft);border-radius:6px;padding:12px;font-family:var(--font-mono);font-size:11.5px;color:var(--dim);}
+.log-box p{margin:0 0 4px;}
+.log-box p:last-child{margin:0;}
+.note{display:flex;gap:10px;font-size:12px;color:var(--faint);border:1px solid var(--border-soft);border-radius:8px;padding:12px 16px;align-items:flex-start;}
+.link-btn{background:none;border:none;color:var(--ember-bright);font-size:12.5px;padding:0;}
+.link-btn:hover{text-decoration:underline;}
+.icon-btn{background:none;border:none;color:var(--faint);padding:4px;}
+.icon-btn:hover{color:var(--text);}
+.menu{position:absolute;right:16px;margin-top:4px;width:170px;border-radius:6px;border:1px solid var(--border);background:var(--panel-raised);padding:4px 0;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+.menu-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 12px;font-size:13px;background:none;border:none;color:var(--text);}
+.menu-item:hover{background:var(--panel);}
+.menu-item.danger{color:var(--danger);}
+.color-row{display:flex;align-items:center;gap:8px;}
+.color-row input[type=color]{width:36px;height:36px;border-radius:6px;border:1px solid var(--border);background:var(--bg);padding:2px;}
+.preview-window{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#0d0c0b;background-size:cover;background-position:center;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============ DATA LAYER (localStorage) ============ */
+const STORE_KEY = 'vynix_forge_data_v1';
+
+const DEFAULT_SETTINGS = {
+  accentColor: '#c4632e',       // dashboard chrome accent (not a project's own branding)
+  defaultLoader: 'vanilla',     // applied to newly created projects
+  defaultRamMin: 2048,
+  defaultRamMax: 4096,
+  buildTimeoutSec: 60,
+  autoDownload: true            // auto-trigger download when a build completes
+};
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      // Backward-compatible: older saved data won't have a settings key yet.
+      parsed.settings = {...DEFAULT_SETTINGS, ...(parsed.settings||{})};
+      return parsed;
+    }
+  }catch(e){}
+  return { projects:[], servers:[], files:[], builds:[], releases:[], settings:{...DEFAULT_SETTINGS} };
+}
+function saveDB(){
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify(DB));
+    PERSIST_OK = true;
+  }catch(e){
+    // Root-cause fix: this used to throw uncaught (e.g. QuotaExceededError from
+    // large base64 branding images bloating the stored JSON), which silently
+    // aborted whatever function called it mid-flight -- including requestBuild(),
+    // which is why builds could get created and then never advance past "queued".
+    // We now degrade to in-memory-only operation instead of crashing the caller.
+    PERSIST_OK = false;
+    console.warn('Vynix Forge: could not persist to localStorage (quota exceeded or blocked). Continuing in-memory only.', e);
+  }
+}
+let PERSIST_OK = true;
+let DB = loadDB();
+
+// FIX: there is no background worker/process in this app -- a "build" only ever
+// advances while the tab that started it is open and running. If a build is
+// left in any non-terminal state (queued/starting/building) when this script
+// loads -- because the previous session hit the saveDB() bug above, crashed,
+// or the tab was closed/reloaded mid-build -- it can never resume on its own.
+// Sweep those into a real terminal state on every load instead of leaving them
+// stuck forever.
+function sweepInterruptedBuilds(){
+  let changed = false;
+  DB.builds.forEach(b=>{
+    if(!['completed','failed'].includes(b.status)){
+      b.status = 'failed';
+      b.completedAt = Date.now();
+      b.error = 'Interrupted: no build worker was running for this build (the tab was closed, reloaded, or an earlier bug left it stuck). This app builds synchronously in your browser tab, so an interrupted build cannot resume -- start a new one.';
+      b.log = b.log || [];
+      b.log.push('Build marked as failed on load: interrupted, no worker resumed it.');
+      changed = true;
+    }
+  });
+  if(changed) saveDB();
+}
+sweepInterruptedBuilds();
+
+// ===== Theme (Appearance setting) =====
+// Recomputes the dashboard's --ember/--ember-bright/--ember-dim CSS variables
+// from the user's chosen accent color, so changing it in Settings visibly
+// re-themes the whole app immediately -- not just a label that does nothing.
+function shadeHex(hex, percent){
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.max(0, (n>>16) + Math.round(255*percent)));
+  const g = Math.min(255, Math.max(0, ((n>>8)&0xff) + Math.round(255*percent)));
+  const b = Math.min(255, Math.max(0, (n&0xff) + Math.round(255*percent)));
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+function applyTheme(){
+  const accent = (DB.settings && DB.settings.accentColor) || DEFAULT_SETTINGS.accentColor;
+  const root = document.documentElement.style;
+  root.setProperty('--ember', accent);
+  root.setProperty('--ember-bright', shadeHex(accent, 0.16));
+  root.setProperty('--ember-dim', shadeHex(accent, -0.35));
+}
+applyTheme();
+
+function newId(prefix){ return prefix+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+function defaultProject(id,name,template){
+  const now = Date.now();
+  const s = DB.settings || DEFAULT_SETTINGS;
+  return {
+    id, name, template: template||'custom', createdAt: now, updatedAt: now, archived:false,
+    identity:{ launcherName:name, version:'0.1.0', publisher:'', description:'', website:'', discord:'' },
+    branding:{ primaryColor:'#c4632e', accentColor:'#5b7065', textColor:'#ede8e1', icon:null, logo:null, background:null, splash:null },
+    layout:{ sidebar:true, home:true, news:true, serverSelector:true, profile:true, settings:true, footer:true },
+    features:{ news:true, serverStatus:true, discord:false, modManager:true, settings:true, updates:true, accountManagement:true },
+    minecraft:{ version:'', loader:s.defaultLoader, javaRequirement:'', ram:{min:s.defaultRamMin, max:s.defaultRamMax} }
+  };
+}
+
+/* ============ APP STATE ============ */
+let state = {
+  route:'overview', // overview|projects|servers|builds|files|updates|settings|studio
+  studioProjectId:null,
+  studioTab:'identity',
+  showNewProject:false,
+  newProjectName:'',
+  newProjectTemplate:'custom',
+  openMenuId:null,
+  modsCategory:'required',
+  showModrinth:false,
+  modrinthQuery:'',
+  modrinthResults:null,
+  modrinthLoading:false,
+  modrinthError:null,
+  expandedBuildId:null,
+  settingsSection:'Integrations',
+  confirmingClear:false,
+  filesFilter:'all',
+  projectsShowArchived:false,
+  releaseForm:{ projectId:'', version:'', channel:'stable', notes:'' },
+  remoteBuild:null, // { buildId, kind, status, progress, log, error } for the in-progress Pro/Dev backend build, if any
+  billingCurrency:'USD'
+};
+
+// Real, server-resolved identity/plan -- fetched from /api/me. Never
+// trust or fall back to a client-side guess for this; it's null until the
+// real backend responds, and the UI shows a loading/login gate until then.
+let currentUser = null;
+
+// Real prices fetched from /api/billing/plans (never hardcoded client-side --
+// the backend's plans.js is the single source of truth for prices/currencies).
+let pricingData = null;
+
+function setState(patch){ Object.assign(state, patch); render(); }
+
+/* ============ HELPERS ============ */
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function timeAgo(ts){
+  const s = Math.floor((Date.now()-ts)/1000);
+  if(s<60) return 'just now';
+  const m = Math.floor(s/60); if(m<60) return m+'m ago';
+  const h = Math.floor(m/60); if(h<24) return h+'h ago';
+  return Math.floor(h/24)+'d ago';
+}
+function activeProjects(){ return DB.projects.filter(p=>!p.archived); }
+function projectById(id){ return DB.projects.find(p=>p.id===id); }
+function serversFor(id){ return DB.servers.filter(s=>s.projectId===id); }
+function filesFor(id,cat){ return DB.files.filter(f=>f.projectId===id && (!cat || f.category===cat)); }
+function buildsFor(id){ return DB.builds.filter(b=>b.projectId===id).sort((a,b)=>b.createdAt-a.createdAt); }
+
+const TEMPLATES = [
+  {id:'vanilla', name:'Vanilla', icon:'\u26cf\ufe0f', blurb:'Unmodified Minecraft, one server address.'},
+  {id:'curated', name:'Curated', icon:'\u2694\ufe0f', blurb:'Vanilla-plus with a small handpicked mod list.'},
+  {id:'modded', name:'Modded', icon:'\ud83e\udde9', blurb:'Heavier modpack, Forge or NeoForge.'},
+  {id:'multi-server', name:'Multi-server', icon:'\ud83d\udc80', blurb:'More than one server in the selector.'},
+  {id:'minigames', name:'Minigames', icon:'\ud83c\udfae', blurb:'Lobby + minigame server selector.'},
+  {id:'custom', name:'Custom', icon:'\ud83d\udd27', blurb:'Start from a blank configuration.'}
+];
+const LOADERS = [['vanilla','Vanilla'],['fabric','Fabric'],['forge','Forge'],['neoforge','NeoForge']];
+
+/* ============ ACTIONS ============ */
+async function createProject(){
+  const name = state.newProjectName.trim();
+  if(!name) return;
+  // Real, server-enforced limit check FIRST -- the local project record
+  // (which holds the rich identity/branding/minecraft config this backend
+  // doesn't store) only gets created if the backend actually allows it.
+  let serverProject;
+  try{
+    const res = await fetch('/api/projects', {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name })
+    });
+    const body = await res.json();
+    if(!res.ok){
+      alert(body.message || body.error || 'Could not create project.');
+      return;
+    }
+    serverProject = body;
+  }catch(e){
+    alert('Could not reach the backend to create this project: '+e.message);
+    return;
+  }
+  // Use the SAME id the backend assigned, so builds can reference one
+  // consistent project identity across both the rich local config and the
+  // server's plan/usage tracking.
+  const project = defaultProject(serverProject.id, name, state.newProjectTemplate);
+  DB.projects.unshift(project);
+  saveDB();
+  setState({ showNewProject:false, newProjectName:'', route:'studio', studioProjectId:project.id, studioTab:'identity' });
+}
+function duplicateProject(id){
+  const orig = projectById(id); if(!orig) return;
+  const nid = newId('proj'); const now = Date.now();
+  DB.projects.unshift({...JSON.parse(JSON.stringify(orig)), id:nid, name:orig.name+' copy', createdAt:now, updatedAt:now, archived:false});
+  serversFor(id).forEach(s=>DB.servers.push({...s, id:newId('srv'), projectId:nid}));
+  filesFor(id).forEach(f=>DB.files.push({...f, id:newId('file'), projectId:nid}));
+  saveDB(); setState({openMenuId:null});
+}
+function archiveProject(id,val){ const p=projectById(id); p.archived=val; p.updatedAt=Date.now(); saveDB(); setState({openMenuId:null}); }
+function deleteProject(id){
+  const p = projectById(id);
+  if(!confirm('Delete "'+p.name+'"? This can\'t be undone.')) { setState({openMenuId:null}); return; }
+  DB.projects = DB.projects.filter(x=>x.id!==id);
+  DB.servers = DB.servers.filter(x=>x.projectId!==id);
+  DB.files = DB.files.filter(x=>x.projectId!==id);
+  DB.builds = DB.builds.filter(x=>x.projectId!==id);
+  DB.releases = DB.releases.filter(x=>x.projectId!==id);
+  saveDB(); setState({openMenuId:null});
+}
+function exportProject(id){
+  const p = projectById(id);
+  const blob = new Blob([JSON.stringify(p,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=p.name.replace(/\s+/g,'-').toLowerCase()+'.vynix.json'; a.click();
+  URL.revokeObjectURL(url); setState({openMenuId:null});
+}
+function updateProject(id, patchFn){ const p=projectById(id); patchFn(p); p.updatedAt=Date.now(); saveDB(); render(); }
+
+function addServer(projectId){
+  DB.servers.push({ id:newId('srv'), projectId, name:'', address:'', port:25565, loader:'vanilla', javaRequirement:'', autoConnect:false, isDefault:false, updatedAt:Date.now() });
+  saveDB(); render();
+}
+function updateServer(id, patchFn){ const s=DB.servers.find(x=>x.id===id); patchFn(s); s.updatedAt=Date.now(); saveDB(); render(); }
+function deleteServer(id){ DB.servers = DB.servers.filter(s=>s.id!==id); saveDB(); render(); }
+
+function addFile(projectId, file){ DB.files.push({ id:newId('file'), projectId, updatedAt:Date.now(), ...file }); saveDB(); render(); }
+function deleteFile(id){ DB.files = DB.files.filter(f=>f.id!==id); saveDB(); render(); }
+
+// ===== Build lifecycle =====
+// Real states only: queued -> starting -> building -> completed | failed.
+// No status is ever set without a real event causing it (see generateAndDownload).
+const ARTIFACTS = {};      // buildId -> { blob, filename }  (in-memory only; see note below)
+const RUNNING_PROJECTS = new Set(); // projectIds with a build currently in flight -- prevents duplicate/concurrent processing of the same project
+
+function findBuild(id){ return DB.builds.find(b=>b.id===id); }
+
+function setBuildStatus(id, status, progress){
+  const b = findBuild(id); if(!b) return;
+  b.status = status;
+  if(progress != null) b.progress = progress;
+  if(status === 'starting' && !b.startedAt) b.startedAt = Date.now();
+  saveDB(); render();
+}
+function logBuild(id, line){
+  const b = findBuild(id); if(!b) return;
+  b.log.push(line);
+  saveDB(); render();
+}
+function completeBuild(id, artifactName, artifactSize){
+  const b = findBuild(id); if(!b) return;
+  b.status = 'completed';
+  b.progress = 100;
+  b.completedAt = Date.now();
+  b.artifactName = artifactName;
+  b.artifactSize = artifactSize;
+  b.log.push('Build completed. Artifact: '+artifactName+' ('+artifactSize+' bytes).');
+  saveDB(); render();
+}
+function failBuild(id, message){
+  const b = findBuild(id); if(!b) return;
+  b.status = 'failed';
+  b.completedAt = Date.now();
+  b.error = message;
+  b.progress = b.progress || 0;
+  b.log.push('Build failed: '+message);
+  saveDB(); render();
+}
+
+function requestBuild(projectId){
+  const id = newId('build');
+  DB.builds.unshift({
+    id, projectId,
+    createdAt: Date.now(), startedAt: null, completedAt: null,
+    status: 'queued', progress: 0,
+    log: ['Build queued.'],
+    error: null, artifactName: null, artifactSize: null
+  });
+  saveDB(); return id;
+}
+
+/* ============ ICONS (tiny inline SVG helper) ============ */
+function icon(name, size){
+  size = size||16;
+  const P = {
+    grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+    folder:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+    server:'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01',
+    hammer:'M14 6l4 4M5 21l7-7m6-6l2 2-6 6-2-2z',
+    files:'M6 2h9l5 5v15H6zM15 2v5h5',
+    refresh:'M21 12a9 9 0 1 1-3-6.7M21 3v6h-6',
+    settings:'M12 2v2m0 16v2M4.2 4.2l1.4 1.4m12.8 12.8l1.4 1.4M2 12h2m16 0h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+    plus:'M12 5v14M5 12h14',
+    flame:'M12 2s6 5 6 11a6 6 0 0 1-12 0c0-2 1-3 1-3s.5 2 2 2c-1-3 1-5 1-7 0 2 2 3 2 5 0-3 0-6 0-8z',
+    dots:'M12 6h.01M12 12h.01M12 18h.01'
+  };
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+
+    '<path d="'+(P[name]||'')+'"/></svg>';
+}
+
+/* ============ RENDER: SHELL ============ */
+const NAV_ITEMS = [
+  ['overview','Overview','grid'],
+  ['projects','Projects','folder'],
+  ['servers','Servers','server'],
+  ['builds','Build Center','hammer'],
+  ['files','Files','files'],
+  ['updates','Updates','refresh'],
+  ['settings','Settings','settings']
+];
+
+function renderShell(bodyHtml){
+  const nav = NAV_ITEMS.map(([r,label,ic])=>
+    '<button class="nav-item '+(state.route===r?'active':'')+'" onclick="setState({route:\''+r+'\'})">'+icon(ic,16)+label+'</button>'
+  ).join('');
+  return '<div class="h-screen-flex">'+
+    '<aside class="sidebar">'+
+      '<div class="sidebar-header"><div class="flame-badge">'+icon('flame',15)+'</div><span class="brand">Vynix Forge</span></div>'+
+      '<div style="padding:16px 12px 0;"><button class="btn-primary" onclick="setState({showNewProject:true})">'+icon('plus',15)+' New launcher</button></div>'+
+      '<nav class="nav">'+nav+'</nav>'+
+      '<div class="sidebar-footer">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'+
+          '<span style="font-size:12.5px;font-weight:500;color:var(--text);">'+planBadge(currentUser.plan)+'</span>'+
+          '<button class="link-btn" onclick="logout()">Sign out</button>'+
+        '</div>'+
+        '<span>Signed in as '+esc(currentUser.githubLogin)+'. Real project/build limits are enforced by the backend for your plan.</span>'+
+      '</div>'+
+    '</aside>'+
+    '<main class="main">'+bodyHtml+'</main>'+
+  '</div>'+
+  (state.showNewProject ? renderNewProjectModal() : '');
+}
+
+function renderNewProjectModal(){
+  const cards = TEMPLATES.map(t=>
+    '<button class="template-card '+(state.newProjectTemplate===t.id?'selected':'')+'" onclick="setState({newProjectTemplate:\''+t.id+'\'})">'+
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><span>'+t.icon+'</span><span style="font-size:13px;font-weight:500;">'+t.name+'</span></div>'+
+      '<p style="margin:0;font-size:11.5px;color:var(--faint);line-height:1.4;">'+t.blurb+'</p>'+
+    '</button>'
+  ).join('');
+  return '<div class="modal-overlay" onclick="if(event.target===this) setState({showNewProject:false})">'+
+    '<div class="modal">'+
+      '<div class="modal-header"><h2 class="modal-title">New launcher</h2><button class="icon-btn" onclick="setState({showNewProject:false})">\u2715</button></div>'+
+      '<div class="modal-body">'+
+        '<div class="field"><label class="field-label">Launcher name</label>'+
+          '<input class="input" id="npName" value="'+esc(state.newProjectName)+'" placeholder="e.g. Ashfall Launcher" oninput="state.newProjectName=this.value" onkeydown="if(event.key===\'Enter\') createProject()"/></div>'+
+        '<div class="field"><label class="field-label">Starting template</label><div class="template-grid">'+cards+'</div>'+
+          '<p class="field-hint">Templates set starting defaults only \u2014 nothing is pre-built for you.</p></div>'+
+      '</div>'+
+      '<div class="modal-footer"><button class="btn-ghost" onclick="setState({showNewProject:false})">Cancel</button>'+
+        '<button class="btn-primary" style="width:auto;" onclick="createProject()">Create launcher</button></div>'+
+    '</div></div>';
+}
+
+/* ============ RENDER: OVERVIEW ============ */
+function renderOverview(){
+  const projects = activeProjects();
+  const builds = DB.builds.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  const header = '<div class="page-header"><div><h1 class="page-title">Overview</h1>'+
+    '<p class="page-desc">Everything happening across your launcher projects, in one place.</p></div>'+
+    '<button class="btn-primary" style="width:auto;" onclick="setState({showNewProject:true})">'+icon('plus',15)+' New launcher</button></div>';
+
+  const stats = '<div class="stat-grid">'+
+    statBlock('Active launchers', projects.length)+
+    statBlock('Servers configured', DB.servers.length)+
+    statBlock('Builds run', DB.builds.length)+
+    statBlock('Local storage used', ((JSON.stringify(DB).length)/1024).toFixed(1)+' KB')+
+  '</div>';
+
+  const recentProjects = projects.length===0 ?
+    emptyState('folder','Create your first launcher','Every launcher starts as a project you can customize, build, and export.','<button class="link-btn" onclick="setState({showNewProject:true})">New launcher \u2192</button>') :
+    '<ul style="list-style:none;margin:0;padding:0;">'+projects.slice(0,5).map(p=>
+      '<li class="list-item" style="cursor:pointer;" onclick="setState({route:\'studio\',studioProjectId:\''+p.id+'\',studioTab:\'identity\'})">'+
+      '<div><p style="margin:0;font-size:14px;font-weight:500;">'+esc(p.name)+'</p>'+
+      '<p style="margin:0;font-size:11.5px;color:var(--faint);">'+esc(p.minecraft.version||'No version set')+' \u00b7 '+esc(p.minecraft.loader)+'</p></div>'+
+      '<span style="font-size:11.5px;color:var(--faint);">'+timeAgo(p.updatedAt)+'</span></li>'
+    ).join('')+'</ul>';
+
+  const recentBuilds = builds.length===0 ?
+    emptyState('hammer','No builds yet','Builds appear here once you generate and build a launcher project.') :
+    '<ul style="list-style:none;margin:0;padding:0;">'+builds.slice(0,5).map(b=>
+      '<li class="list-item"><div style="display:flex;align-items:center;gap:8px;"><span class="dot dot-'+statusDot(b.status)+'"></span><span style="font-size:14px;">'+b.id+'</span></div>'+
+      '<span style="font-size:11.5px;color:var(--faint);">'+statusLabel(b.status)+'</span></li>'
+    ).join('')+'</ul>';
+
+  const panels = '<div class="grid-2">'+
+    '<div class="panel"><div class="panel-header"><h3 class="panel-title">Recent projects</h3><button class="link-btn" onclick="setState({route:\'projects\'})">View all</button></div>'+recentProjects+'</div>'+
+    '<div class="panel"><div class="panel-header"><h3 class="panel-title">Recent builds</h3><button class="link-btn" onclick="setState({route:\'builds\'})">View all</button></div>'+recentBuilds+'</div>'+
+  '</div>';
+
+  const quick = '<div class="panel" style="margin-top:20px;"><div class="panel-header"><h3 class="panel-title">Quick actions</h3></div>'+
+    '<div class="grid-3">'+
+      '<button class="list-item" style="flex-direction:column;align-items:flex-start;gap:8px;border-right:1px solid var(--border-soft);" onclick="setState({showNewProject:true})">'+icon('plus',16)+'<span style="font-size:13px;">New launcher</span></button>'+
+      '<button class="list-item" style="flex-direction:column;align-items:flex-start;gap:8px;border-right:1px solid var(--border-soft);" onclick="setState({route:\'servers\'})">'+icon('server',16)+'<span style="font-size:13px;">Configure a server</span></button>'+
+      '<button class="list-item" style="flex-direction:column;align-items:flex-start;gap:8px;" onclick="setState({route:\'builds\'})">'+icon('hammer',16)+'<span style="font-size:13px;">Open Build Center</span></button>'+
+    '</div></div>';
+
+  const note = '<div class="note" style="margin-top:20px;">'+icon('flame',14)+'<p style="margin:0;">Your project configurations (branding, servers, mods) live in this browser. Your account, plan, and build history are tracked by the Vynix Forge backend, and build requests send your project config there to generate real artifacts.</p></div>';
+
+  return header + '<div class="page-body">'+stats+panels+quick+note+'</div>';
+}
+function statBlock(label,val){ return '<div class="stat-block"><p class="stat-label">'+label+'</p><p class="stat-value">'+val+'</p></div>'; }
+function emptyState(ic,title,desc,action){
+  return '<div class="empty-state"><div class="empty-icon">'+icon(ic,20)+'</div><p class="empty-title">'+title+'</p>'+
+  (desc?'<p class="empty-desc">'+desc+'</p>':'')+(action?'<div style="margin-top:14px;">'+action+'</div>':'')+'</div>';
+}
+function statusDot(status){
+  if(status==='completed') return 'ok';
+  if(status==='failed') return 'fail';
+  if(status==='starting'||status==='building') return 'warn';
+  return 'neutral'; // queued
+}
+function statusBadgeClass(status){
+  if(status==='completed') return 'badge-ok';
+  if(status==='failed') return 'badge-fail';
+  if(status==='starting'||status==='building') return 'badge-warn';
+  return 'badge-neutral'; // queued
+}
+function statusLabel(status){
+  return {queued:'Queued', starting:'Starting', building:'Building', completed:'Completed', failed:'Failed'}[status] || status;
+}
+
+/* ============ RENDER: PROJECTS ============ */
+function renderProjects(){
+  const header = '<div class="page-header"><div><h1 class="page-title">Projects</h1>'+
+    '<p class="page-desc">Every launcher you\'re building, with full configuration control.</p></div>'+
+    '<button class="btn-primary" style="width:auto;" onclick="setState({showNewProject:true})">'+icon('plus',15)+' New launcher</button></div>';
+
+  const list = DB.projects.filter(p=> state.projectsShowArchived ? p.archived : !p.archived);
+  const tabs = '<div style="display:flex;gap:4px;margin-bottom:16px;">'+
+    '<button class="tab-btn '+(!state.projectsShowArchived?'active':'')+'" onclick="setState({projectsShowArchived:false})">Active</button>'+
+    '<button class="tab-btn '+(state.projectsShowArchived?'active':'')+'" onclick="setState({projectsShowArchived:true})">Archived</button></div>';
+
+  let body;
+  if(list.length===0){
+    body = emptyState('folder', state.projectsShowArchived?'No archived launchers':'Create your first launcher',
+      state.projectsShowArchived?'Launchers you archive will show up here.':'Every launcher starts as a project you can customize, build, and export.',
+      state.projectsShowArchived?'':'<button class="link-btn" onclick="setState({showNewProject:true})">New launcher \u2192</button>');
+  }else{
+    body = '<div class="panel"><table><thead><tr><th>Name</th><th>Minecraft</th><th>Loader</th><th>Template</th><th></th></tr></thead><tbody>'+
+      list.map(p=>{
+        const menu = state.openMenuId===p.id ? '<div class="menu">'+
+          '<button class="menu-item" onclick="duplicateProject(\''+p.id+'\')">Duplicate</button>'+
+          '<button class="menu-item" onclick="exportProject(\''+p.id+'\')">Export config</button>'+
+          '<button class="menu-item" onclick="archiveProject(\''+p.id+'\','+(!p.archived)+')">'+(p.archived?'Unarchive':'Archive')+'</button>'+
+          '<button class="menu-item danger" onclick="deleteProject(\''+p.id+'\')">Delete</button>'+
+        '</div>' : '';
+        return '<tr><td><button class="link-btn" style="color:var(--text);font-weight:500;" onclick="setState({route:\'studio\',studioProjectId:\''+p.id+'\',studioTab:\'identity\'})">'+esc(p.name)+'</button></td>'+
+        '<td style="color:var(--dim);">'+esc(p.minecraft.version||'\u2014')+'</td>'+
+        '<td style="color:var(--dim);text-transform:capitalize;">'+esc(p.minecraft.loader)+'</td>'+
+        '<td style="color:var(--dim);text-transform:capitalize;">'+p.template.replace('-',' ')+'</td>'+
+        '<td style="position:relative;"><button class="icon-btn" onclick="setState({openMenuId: state.openMenuId===\''+p.id+'\'?null:\''+p.id+'\'})">'+icon('dots',15)+'</button>'+menu+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  return header + '<div class="page-body">'+tabs+body+'</div>';
+}
+
+/* ============ RENDER: SERVERS (cross-project) ============ */
+function renderServersPage(){
+  const header = '<div class="page-header"><div><h1 class="page-title">Servers</h1><p class="page-desc">Every server configured across your launcher projects.</p></div></div>';
+  let body;
+  if(DB.servers.length===0){
+    body = emptyState('server','No servers configured',"Add a server from within a launcher project's Minecraft & server tab.");
+  }else{
+    body = '<div class="panel"><table><thead><tr><th>Server</th><th>Project</th><th>Address</th><th>Loader</th><th>Status</th></tr></thead><tbody>'+
+      DB.servers.map(s=>{
+        const p = projectById(s.projectId);
+        return '<tr><td style="font-weight:500;">'+esc(s.name||'Unnamed server')+'</td>'+
+          '<td><button class="link-btn" style="color:var(--dim);" onclick="setState({route:\'studio\',studioProjectId:\''+s.projectId+'\',studioTab:\'minecraft\'})">'+(p?esc(p.name):'Unknown')+'</button></td>'+
+          '<td style="color:var(--dim);font-family:var(--font-mono);font-size:12.5px;">'+(s.address?esc(s.address)+':'+s.port:'\u2014')+'</td>'+
+          '<td style="color:var(--dim);text-transform:capitalize;">'+esc(s.loader)+'</td>'+
+          '<td style="color:var(--faint);font-size:12px;">Not checked</td></tr>';
+      }).join('')+'</tbody></table></div>'+
+      '<p style="margin-top:12px;font-size:11.5px;color:var(--faint);">Vynix Forge doesn\'t ping servers for live status \u2014 status is only shown when a real check has been run.</p>';
+  }
+  return header + '<div class="page-body">'+body+'</div>';
+}
+
+/* ============ RENDER: BUILDS (cross-project) ============ */
+function renderBuildsPage(){
+  const header = '<div class="page-header"><div><h1 class="page-title">Build Center</h1><p class="page-desc">Build history across all your launcher projects.</p></div></div>';
+  const builds = DB.builds.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  let body;
+  if(builds.length===0){
+    body = emptyState('hammer','No builds yet',"Generate a launcher from a project's Build tab to see it appear here.");
+  }else{
+    body = '<div class="panel">'+builds.map(b=>{
+      const p = projectById(b.projectId);
+      const open = state.expandedBuildId===b.id;
+      const inProgress = b.status==='starting' || b.status==='building';
+      return '<div style="border-bottom:1px solid var(--border-soft);">'+
+        '<button class="list-item" style="width:100%;cursor:pointer;" onclick="setState({expandedBuildId: state.expandedBuildId===\''+b.id+'\'?null:\''+b.id+'\'})">'+
+          '<div><p style="margin:0;font-size:14px;font-weight:500;">'+(p?esc(p.name):'Unknown')+' <span style="color:var(--faint);font-weight:400;">\u00b7 '+b.id+'</span></p>'+
+          '<p style="margin:0;font-size:11.5px;color:var(--faint);">'+new Date(b.createdAt).toLocaleString()+(inProgress?' \u00b7 '+(b.progress||0)+'%':'')+'</p></div>'+
+          '<span class="badge '+statusBadgeClass(b.status)+'">'+statusLabel(b.status)+'</span>'+
+        '</button>'+
+        (b.status==='failed' && b.error ? '<div style="padding:0 16px 10px 16px;"><p style="margin:0;font-size:12px;color:var(--danger);">'+esc(b.error)+'</p></div>' : '')+
+        '<div style="padding:0 16px 12px 16px;display:flex;gap:12px;">'+
+          (b.status==='completed' ? '<button class="link-btn" onclick="event.stopPropagation();redownloadBuild(\''+b.id+'\')">Download Build</button>' : '')+
+          (b.status==='failed' ? '<button class="link-btn" onclick="event.stopPropagation();retryBuild(\''+b.projectId+'\')">Retry build</button>' : '')+
+        '</div>'+
+        (open ? '<div style="padding:0 16px 14px 16px;"><div class="log-box">'+b.log.map(l=>'<p>'+esc(l)+'</p>').join('')+'</div></div>' : '')+
+      '</div>';
+    }).join('')+'</div>';
+  }
+  return header + '<div class="page-body">'+body+'</div>';
+}
+
+/* ============ RENDER: FILES (cross-project) ============ */
+const CATEGORY_LABELS = {required:'Required mod',optional:'Optional mod',resourcepack:'Resource pack',shaderpack:'Shaderpack',config:'Config'};
+function renderFilesPage(){
+  const header = '<div class="page-header"><div><h1 class="page-title">Files</h1><p class="page-desc">Mods, resource packs, shaderpacks, and configs across all projects.</p></div></div>';
+  const filter = state.filesFilter;
+  const list = filter==='all' ? DB.files : DB.files.filter(f=>f.category===filter);
+  const tabs = '<div class="tabs">'+
+    '<button class="tab-btn '+(filter==='all'?'active':'')+'" onclick="setState({filesFilter:\'all\'})">All</button>'+
+    Object.entries(CATEGORY_LABELS).map(([k,l])=>'<button class="tab-btn '+(filter===k?'active':'')+'" onclick="setState({filesFilter:\''+k+'\'})">'+l+'s</button>').join('')+
+  '</div>';
+  let body;
+  if(list.length===0){
+    body = emptyState('files','No files yet',"Upload mods or import from Modrinth inside a launcher project's Mods tab.");
+  }else{
+    body = '<div class="panel">'+list.map(f=>{
+      const p = projectById(f.projectId);
+      return '<div class="list-item"><div><p style="margin:0;font-size:14px;">'+esc(f.name)+'</p>'+
+        '<p style="margin:0;font-size:11.5px;color:var(--faint);">'+(CATEGORY_LABELS[f.category]||f.category)+' \u00b7 '+(f.source==='modrinth'?'Modrinth':'Uploaded')+'</p></div>'+
+        '<button class="link-btn" onclick="setState({route:\'studio\',studioProjectId:\''+f.projectId+'\',studioTab:\'mods\'})">'+(p?esc(p.name):'Unknown')+'</button></div>';
+    }).join('')+'</div>';
+  }
+  return header + '<div class="page-body">'+tabs+body+'</div>';
+}
+
+/* ============ RENDER: UPDATES ============ */
+function renderUpdatesPage(){
+  const header = '<div class="page-header"><div><h1 class="page-title">Updates</h1><p class="page-desc">Publish release notes and manage version history for your launchers.</p></div></div>';
+  const releases = DB.releases.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  const listHtml = releases.length===0 ? emptyState('refresh','No releases published','Publish your first release using the form to the right.') :
+    '<div class="panel">'+releases.map(r=>{
+      const p = projectById(r.projectId);
+      return '<div style="padding:12px 16px;border-bottom:1px solid var(--border-soft);">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;"><p style="margin:0;font-size:14px;font-weight:500;">'+(p?esc(p.name):'Unknown')+' \u00b7 v'+esc(r.version)+'</p>'+
+        '<span class="badge badge-neutral">'+r.channel+'</span></div>'+
+        '<p style="margin:2px 0 0;font-size:11.5px;color:var(--faint);">'+new Date(r.createdAt).toLocaleString()+'</p>'+
+        (r.notes?'<p style="margin:6px 0 0;font-size:13px;">'+esc(r.notes)+'</p>':'')+
+      '</div>';
+    }).join('')+'</div>';
+
+  const active = activeProjects();
+  const form = active.length===0 ? '<p style="font-size:12.5px;color:var(--faint);">Create a launcher project first.</p>' :
+    '<select class="input" style="margin-bottom:10px;" onchange="state.releaseForm.projectId=this.value">'+
+      '<option value="">Select a project\u2026</option>'+active.map(p=>'<option value="'+p.id+'" '+(state.releaseForm.projectId===p.id?'selected':'')+'>'+esc(p.name)+'</option>').join('')+
+    '</select>'+
+    '<input class="input" style="margin-bottom:10px;" placeholder="Version, e.g. 1.1.0" value="'+esc(state.releaseForm.version)+'" oninput="state.releaseForm.version=this.value"/>'+
+    '<select class="input" style="margin-bottom:10px;" onchange="state.releaseForm.channel=this.value">'+
+      ['stable','beta','development'].map(c=>'<option value="'+c+'" '+(state.releaseForm.channel===c?'selected':'')+'>'+c+'</option>').join('')+
+    '</select>'+
+    '<textarea class="input" rows="4" style="margin-bottom:10px;" placeholder="Release notes" oninput="state.releaseForm.notes=this.value">'+esc(state.releaseForm.notes)+'</textarea>'+
+    '<button class="btn-primary" onclick="publishRelease()">'+icon('plus',14)+' Publish release</button>';
+
+  const sidebar = '<div class="panel" style="padding:16px;height:fit-content;"><h3 class="panel-title" style="margin-bottom:12px;">Publish a release</h3>'+form+'</div>';
+
+  return header + '<div class="page-body" style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">'+
+    '<div>'+listHtml+'</div>'+sidebar+'</div>';
+}
+function publishRelease(){
+  const f = state.releaseForm;
+  if(!f.projectId || !f.version.trim()) return;
+  DB.releases.unshift({ id:newId('rel'), projectId:f.projectId, version:f.version.trim(), channel:f.channel, notes:f.notes, createdAt:Date.now() });
+  saveDB();
+  setState({ releaseForm:{ projectId:'', version:'', channel:'stable', notes:'' } });
+}
+
+/* ============ RENDER: SETTINGS ============ */
+function updateSettings(patchFn){
+  DB.settings = DB.settings || {...DEFAULT_SETTINGS};
+  patchFn(DB.settings);
+  saveDB(); applyTheme(); render();
+}
+function exportAllData(){
+  const blob = new Blob([JSON.stringify(DB,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='vynix-forge-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+function importAllData(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed || !Array.isArray(parsed.projects)) throw new Error("This file doesn't look like a Vynix Forge backup.");
+      parsed.projects = parsed.projects||[]; parsed.servers = parsed.servers||[]; parsed.files = parsed.files||[];
+      parsed.builds = parsed.builds||[]; parsed.releases = parsed.releases||[];
+      parsed.settings = {...DEFAULT_SETTINGS, ...(parsed.settings||{})};
+      DB = parsed;
+      sweepInterruptedBuilds(); // in case the backup itself had unfinished builds
+      saveDB(); applyTheme(); render();
+      alert('Import complete: '+DB.projects.length+' project(s) restored.');
+    }catch(e){
+      alert('Import failed: '+e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+function renderSettingsPage(){
+  const header = '<div class="page-header"><div><h1 class="page-title">Settings</h1><p class="page-desc">Account, appearance, and integration preferences.</p></div></div>';
+  const sections = ['Account','Billing','Appearance','Security','Integrations','Build configuration'];
+  const nav = sections.map(s=>'<button class="studio-nav-item '+(state.settingsSection===s?'active':'')+'" onclick="setState({settingsSection:\''+s+'\'})">'+s+'</button>').join('');
+  const s = DB.settings || DEFAULT_SETTINGS;
+  let content = '';
+  if(state.settingsSection==='Billing'){
+    const plan = currentUser.limits;
+    const usage = currentUser.usage || {};
+    const cur = state.billingCurrency;
+
+    const usagePanel = '<div class="panel" style="padding:16px;margin-bottom:16px;">'+
+      '<h3 class="panel-title" style="margin-bottom:10px;">Current plan: '+planBadge(currentUser.plan)+'</h3>'+
+      '<div style="font-size:12.5px;color:var(--dim);line-height:1.7;">'+
+        '<div>Active projects: '+usage.activeProjects+' / '+(plan.maxActiveProjects===Infinity?'\u221e':plan.maxActiveProjects)+'</div>'+
+        '<div>Builds today: '+usage.buildsToday+' / '+(plan.maxBuildsPerDay===Infinity?'\u221e':plan.maxBuildsPerDay)+'</div>'+
+        '<div>Cloud builds: '+(plan.cloudBuild?'Enabled':'\ud83d\udd12 Requires Pro')+'</div>'+
+        '<div>Production .exe: '+(plan.productionExe?'Enabled':'\ud83d\udd12 Requires Dev')+'</div>'+
+        '<div>API access: '+(plan.apiAccess?'Enabled':'\ud83d\udd12 Requires Dev')+'</div>'+
+      '</div></div>';
+
+    if(currentUser.plan==='owner'){
+      content = usagePanel + '<p style="font-size:12.5px;color:var(--faint);">Owner accounts are never billed and have no upgrade options, in any currency.</p>';
+    }else if(!pricingData){
+      content = usagePanel + '<p style="font-size:12.5px;color:var(--faint);">Loading real pricing\u2026</p>';
+    }else{
+      const currencySelector = '<div style="display:flex;gap:6px;margin-bottom:14px;">'+
+        pricingData.currencies.map(c=>'<button class="tab-btn '+(cur===c?'active':'')+'" onclick="setState({billingCurrency:\''+c+'\'})">'+c+'</button>').join('')+
+      '</div>';
+
+      const rows = ['pro','dev'].filter(id => currentUser.plan !== id && !(currentUser.plan==='dev'&&id==='pro')).map(id => {
+        const p = pricingData.plans[id];
+        const checkoutAvailable = p.currenciesAvailableForCheckout.includes(cur);
+        return '<div class="panel" style="padding:16px;margin-bottom:12px;">'+
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">'+
+            '<h3 class="panel-title">'+p.label+'</h3>'+
+            '<span style="font-family:var(--font-display);font-weight:600;font-size:18px;">'+p.prices[cur]+'</span>'+
+          '</div>'+
+          (checkoutAvailable ?
+            '<button class="btn-primary" style="width:auto;" onclick="upgradeTo(\''+id+'\')">Upgrade to '+p.label+'</button>' :
+            '<p style="font-size:11.5px;color:var(--warn);margin:0;">\ud83d\udd12 '+cur+' checkout isn\'t connected to a real payment yet for this plan \u2014 price shown is informational.</p>'
+          )+
+        '</div>';
+      }).join('');
+
+      content = usagePanel + currencySelector + rows;
+    }
+  }else if(state.settingsSection==='Integrations'){
+    content = '<div class="panel" style="padding:16px;margin-bottom:16px;"><h3 class="panel-title" style="margin-bottom:8px;">GitHub</h3>'+
+      '<p style="font-size:12.5px;color:var(--dim);">Connected \u2014 signed in as '+esc(currentUser.githubLogin)+'. This is how Vynix Forge identifies your account and plan; there\'s no separate connect step.</p></div>'+
+      '<div class="panel" style="padding:16px;"><h3 class="panel-title" style="margin-bottom:8px;">Modrinth</h3>'+
+      '<p style="font-size:12.5px;color:var(--dim);">Search and import happen directly against Modrinth\'s public API \u2014 no account connection needed.</p></div>';
+  }else if(state.settingsSection==='Account'){
+    content = '<p style="font-size:13px;color:var(--dim);margin-bottom:16px;">Signed in via GitHub as '+esc(currentUser.githubLogin)+'. Your plan and build limits are tracked server-side; your project configurations (branding, servers, mods) still live in this browser.</p>'+
+      '<div class="panel" style="padding:16px;margin-bottom:16px;"><h3 class="panel-title" style="margin-bottom:8px;">Backup</h3>'+
+      '<p style="font-size:12.5px;color:var(--dim);margin-bottom:10px;">Export every project, server, file record, build, release, and setting as one JSON file \u2014 or restore from a previous export.</p>'+
+      '<div style="display:flex;gap:8px;">'+
+        '<button class="btn-secondary" onclick="exportAllData()">Export all data</button>'+
+        '<label class="btn-secondary" style="cursor:pointer;">Import data<input type="file" accept="application/json" style="display:none;" onchange="if(this.files[0]) importAllData(this.files[0])"/></label>'+
+      '</div></div>'+
+      '<div class="panel" style="padding:16px;"><h3 class="panel-title" style="margin-bottom:8px;">Local data</h3>'+
+      '<p style="font-size:12.5px;color:var(--dim);margin-bottom:10px;">Clear every project, server, file record, build, and release. This can\'t be undone \u2014 export a backup first if you want to keep a copy.</p>'+
+      (state.confirmingClear ?
+        '<button class="link-btn" style="color:var(--danger);margin-right:12px;" onclick="clearAllData()">Confirm \u2014 delete everything</button><button class="link-btn" onclick="setState({confirmingClear:false})">Cancel</button>' :
+        '<button class="link-btn" style="color:var(--danger);" onclick="setState({confirmingClear:true})">Clear all local data</button>')+
+      '</div>';
+  }else if(state.settingsSection==='Appearance'){
+    content = '<div class="panel" style="padding:16px;margin-bottom:16px;">'+
+      '<h3 class="panel-title" style="margin-bottom:10px;">Dashboard accent color</h3>'+
+      '<div class="color-row" style="margin-bottom:10px;">'+
+        '<input type="color" value="'+s.accentColor+'" onchange="updateSettings(x=>x.accentColor=this.value)"/>'+
+        '<input class="input" value="'+esc(s.accentColor)+'" onchange="updateSettings(x=>x.accentColor=this.value)"/>'+
+      '</div>'+
+      '<button class="link-btn" onclick="updateSettings(x=>x.accentColor=DEFAULT_SETTINGS.accentColor)">Reset to default</button>'+
+    '</div>'+
+    '<p style="font-size:12.5px;color:var(--faint);">This only re-themes Vynix Forge\'s own dashboard chrome (buttons, active nav, highlights). Your generated launcher\'s appearance is configured separately, per-project, in that project\'s Branding tab.</p>';
+  }else if(state.settingsSection==='Security'){
+    content = '<p style="font-size:13px;color:var(--dim);">No account credentials are stored \u2014 Vynix Forge runs entirely client-side.</p>';
+  }else{
+    const loaderSelect = '<select class="input" onchange="updateSettings(x=>x.defaultLoader=this.value)">'+LOADERS.map(([v,l])=>'<option value="'+v+'" '+(s.defaultLoader===v?'selected':'')+'>'+l+'</option>').join('')+'</select>';
+    content = field('Default mod loader for new projects', loaderSelect)+
+      '<div class="grid-2">'+
+        field('Default minimum RAM (MB)', '<input class="input" type="number" value="'+s.defaultRamMin+'" onchange="updateSettings(x=>x.defaultRamMin=Number(this.value))"/>')+
+        field('Default maximum RAM (MB)', '<input class="input" type="number" value="'+s.defaultRamMax+'" onchange="updateSettings(x=>x.defaultRamMax=Number(this.value))"/>')+
+      '</div>'+
+      field('Build timeout (seconds)', '<input class="input" type="number" min="5" value="'+s.buildTimeoutSec+'" onchange="updateSettings(x=>x.buildTimeoutSec=Math.max(5,Number(this.value)))"/>', 'A build that hangs past this long is automatically marked Failed instead of staying stuck in Building forever.')+
+      '<button class="toggle" onclick="updateSettings(x=>x.autoDownload=!x.autoDownload)"><span>Auto-download when a build completes</span><span class="toggle-track '+(s.autoDownload?'on':'')+'"><span class="toggle-thumb"></span></span></button>'+
+      '<p style="margin-top:14px;font-size:11.5px;color:var(--faint);">These are defaults applied to newly created projects and new builds \u2014 existing projects and past builds are unaffected.</p>';
+  }
+  return header + '<div class="page-body" style="display:flex;gap:32px;"><nav style="width:190px;flex-shrink:0;display:flex;flex-direction:column;gap:2px;">'+nav+'</nav><div style="flex:1;max-width:520px;">'+content+'</div></div>';
+}
+function clearAllData(){
+  const keepSettings = DB.settings || {...DEFAULT_SETTINGS};
+  DB = { projects:[], servers:[], files:[], builds:[], releases:[], settings: keepSettings };
+  saveDB(); applyTheme(); setState({confirmingClear:false});
+}
+
+/* ============ RENDER: PROJECT STUDIO ============ */
+const STUDIO_TABS = [['identity','Identity'],['branding','Branding'],['layout','Layout & features'],['minecraft','Minecraft & server'],['mods','Mods'],['preview','Preview'],['build','Generate & build']];
+
+function renderStudio(){
+  const p = projectById(state.studioProjectId);
+  if(!p) return '<div style="padding:32px;"><p style="color:var(--dim);">This project doesn\'t exist.</p><button class="link-btn" onclick="setState({route:\'projects\'})">Back to projects</button></div>';
+  const nav = STUDIO_TABS.map(([k,label])=>'<button class="studio-nav-item '+(state.studioTab===k?'active':'')+'" onclick="setState({studioTab:\''+k+'\'})">'+label+'</button>').join('');
+
+  let content;
+  if(state.studioTab==='identity') content = studioIdentity(p);
+  else if(state.studioTab==='branding') content = studioBranding(p);
+  else if(state.studioTab==='layout') content = studioLayout(p);
+  else if(state.studioTab==='minecraft') content = studioMinecraft(p);
+  else if(state.studioTab==='mods') content = studioMods(p);
+  else if(state.studioTab==='preview') content = studioPreview(p);
+  else content = studioBuild(p);
+
+  return '<div class="studio-flex">'+
+    '<aside class="sidebar" style="width:220px;">'+
+      '<div class="sidebar-header"><button class="icon-btn" style="margin-left:-4px;" onclick="setState({route:\'projects\'})">\u2190</button>'+
+      '<div style="min-width:0;"><p style="margin:0;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</p><p style="margin:0;font-size:11px;color:var(--faint);">Launcher studio</p></div></div>'+
+      '<nav class="nav">'+nav+'</nav>'+
+      '<div class="sidebar-footer">'+icon('flame',12)+' Vynix Forge</div>'+
+    '</aside>'+
+    '<div class="studio-body">'+content+'</div>'+
+  '</div>'+(state.showModrinth ? renderModrinthModal(p) : '');
+}
+
+function studioPageHeader(title,desc){ return '<h1 style="font-family:var(--font-display);font-weight:600;font-size:18px;margin:0 0 4px;">'+title+'</h1><p style="font-size:13px;color:var(--dim);margin:0 0 24px;">'+desc+'</p>'; }
+
+function studioIdentity(p){
+  const i = p.identity;
+  return studioPageHeader('Identity','How your launcher identifies itself \u2014 shown in the window title, about screen, and update checks.')+
+    field('Launcher name', '<input class="input" value="'+esc(i.launcherName)+'" onchange="updateProject(\''+p.id+'\',pr=>{pr.identity.launcherName=this.value; if(this.value.trim()) pr.name=this.value;})"/>')+
+    field('Version', '<input class="input" value="'+esc(i.version)+'" onchange="updateProject(\''+p.id+'\',pr=>pr.identity.version=this.value)"/>','Semantic version, e.g. 1.0.0. Used for update checks.')+
+    field('Publisher', '<input class="input" value="'+esc(i.publisher)+'" onchange="updateProject(\''+p.id+'\',pr=>pr.identity.publisher=this.value)"/>')+
+    field('Description', '<textarea class="input" rows="3" onchange="updateProject(\''+p.id+'\',pr=>pr.identity.description=this.value)">'+esc(i.description)+'</textarea>')+
+    '<div class="grid-2">'+
+      field('Website', '<input class="input" value="'+esc(i.website)+'" placeholder="https://" onchange="updateProject(\''+p.id+'\',pr=>pr.identity.website=this.value)"/>')+
+      field('Discord invite', '<input class="input" value="'+esc(i.discord)+'" placeholder="https://discord.gg/\u2026" onchange="updateProject(\''+p.id+'\',pr=>pr.identity.discord=this.value)"/>')+
+    '</div>';
+}
+
+function field(label, inputHtml, hint){ return '<div class="field"><label class="field-label">'+label+'</label>'+inputHtml+(hint?'<p class="field-hint">'+hint+'</p>':'')+'</div>'; }
+
+function studioBranding(p){
+  const b = p.branding;
+  const colorField = (label,key)=>field(label,'<div class="color-row"><input type="color" value="'+b[key]+'" onchange="updateProject(\''+p.id+'\',pr=>pr.branding.'+key+'=this.value)"/>'+
+    '<input class="input" value="'+esc(b[key])+'" onchange="updateProject(\''+p.id+'\',pr=>pr.branding.'+key+'=this.value)"/></div>');
+  const imgUpload = (label,key,hint)=>field(label,
+    '<label class="upload-box">'+(b[key]?'<img class="thumb" src="'+b[key]+'"/>':'<div class="pill-icon">\ud83d\uddbc</div>')+
+    '<span style="font-size:12.5px;color:var(--dim);">'+(b[key]?'Replace image':'Upload image')+'</span>'+
+    '<input type="file" accept="image/*" style="display:none;" onchange="handleBrandImage(\''+p.id+'\',\''+key+'\',this.files[0])"/></label>', hint);
+
+  const preview = '<div class="preview-window" style="'+(b.background?'background-image:url('+b.background+');':'')+'">'+
+    '<div style="height:32px;display:flex;align-items:center;gap:6px;padding:0 12px;background:'+b.primaryColor+';">'+
+    (b.icon?'<img src="'+b.icon+'" style="width:14px;height:14px;border-radius:3px;"/>':'')+
+    '<span style="font-size:10.5px;font-weight:500;color:'+b.textColor+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.identity.launcherName||p.name)+'</span></div>'+
+    '<div style="height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 16px;">'+
+    (b.logo?'<img src="'+b.logo+'" style="height:32px;object-fit:contain;"/>':'<p style="font-family:var(--font-display);font-weight:600;font-size:14px;text-align:center;color:'+b.textColor+';margin:0;">'+esc(p.identity.launcherName||p.name)+'</p>')+
+    '<button style="font-size:11px;padding:6px 16px;border-radius:6px;border:none;font-weight:500;background:'+b.accentColor+';color:'+b.textColor+';">Play</button>'+
+    '</div></div>';
+
+  return studioPageHeader('Branding','Colors and imagery applied across the generated launcher.')+
+    '<div class="grid-2" style="grid-template-columns:1fr 260px;gap:24px;align-items:start;">'+
+    '<div>'+
+      '<div class="grid-3">'+colorField('Primary color','primaryColor')+colorField('Accent color','accentColor')+colorField('Text color','textColor')+'</div>'+
+      '<div class="grid-2">'+
+        imgUpload('Icon','icon','Square, 256\u00d7256 recommended.')+
+        imgUpload('Logo','logo','Shown in the sidebar header.')+
+        imgUpload('Background','background','Fills the main window.')+
+        imgUpload('Splash screen','splash','Shown while the launcher loads.')+
+      '</div>'+
+    '</div>'+
+    '<div><p style="font-size:11.5px;color:var(--faint);margin-bottom:8px;">Live preview</p>'+preview+'</div>'+
+    '</div>';
+}
+function handleBrandImage(projectId,key,file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=> updateProject(projectId, p=>p.branding[key]=reader.result);
+  reader.readAsDataURL(file);
+}
+
+const LAYOUT_LABELS = {sidebar:'Sidebar navigation',home:'Home screen',news:'News feed',serverSelector:'Server selector',profile:'Player profile panel',settings:'Settings screen',footer:'Footer bar'};
+const FEATURE_LABELS = {news:'News',serverStatus:'Live server status',discord:'Discord widget',modManager:'In-launcher mod manager',settings:'Settings screen',updates:'Automatic updates',accountManagement:'Account management'};
+function studioLayout(p){
+  const toggle = (obj,key,label)=>'<button class="toggle" onclick="updateProject(\''+p.id+'\',pr=>pr.'+obj+'.'+key+'=!pr.'+obj+'.'+key+')"><span>'+label+'</span><span class="toggle-track '+(p[obj][key]?'on':'')+'"><span class="toggle-thumb"></span></span></button>';
+  return studioPageHeader('Layout & features','Choose which screens and capabilities the generated launcher includes.')+
+    '<h3 style="font-family:var(--font-display);font-weight:500;font-size:14px;margin:0 0 10px;">Layout sections</h3>'+
+    '<div class="grid-2" style="margin-bottom:24px;">'+Object.entries(LAYOUT_LABELS).map(([k,l])=>toggle('layout',k,l)).join('')+'</div>'+
+    '<h3 style="font-family:var(--font-display);font-weight:500;font-size:14px;margin:0 0 10px;">Launcher features</h3>'+
+    '<div class="grid-2">'+Object.entries(FEATURE_LABELS).map(([k,l])=>toggle('features',k,l)).join('')+'</div>'+
+    '<p style="margin-top:10px;font-size:11px;color:var(--faint);">Discord widget requires a Discord invite link set on the Identity page.</p>';
+}
+
+function validateVersion(v){ if(!v) return null; return /^\d+\.\d+(\.\d+)?$/.test(v) ? null : 'Doesn\'t look like a valid Minecraft version (e.g. 1.20.4).'; }
+function studioMinecraft(p){
+  const mc = p.minecraft;
+  const verr = validateVersion(mc.version);
+  const loaderSelect = (val,onchange)=>'<select class="input" onchange="'+onchange+'">'+LOADERS.map(([v,l])=>'<option value="'+v+'" '+(val===v?'selected':'')+'>'+l+'</option>').join('')+'</select>';
+  let html = studioPageHeader('Minecraft & server','Which Minecraft version and mod loader this launcher targets, and the servers it connects to.');
+  html += '<div class="grid-2">'+
+    field('Minecraft version', '<input class="input" value="'+esc(mc.version)+'" placeholder="1.20.4" onchange="updateProject(\''+p.id+'\',pr=>pr.minecraft.version=this.value)"/>'+(verr?'<p class="field-hint" style="color:var(--warn);">\u26a0 '+verr+'</p>':''))+
+    field('Mod loader', loaderSelect(mc.loader, "updateProject('"+p.id+"',pr=>pr.minecraft.loader=this.value)")) +
+  '</div>';
+  html += field('Java requirement', '<input class="input" value="'+esc(mc.javaRequirement)+'" placeholder="Java 17+" onchange="updateProject(\''+p.id+'\',pr=>pr.minecraft.javaRequirement=this.value)"/>','Only advertise a Java version your build actually bundles or requires.');
+  html += '<div class="grid-2">'+
+    field('Minimum RAM (MB)', '<input class="input" type="number" value="'+mc.ram.min+'" onchange="updateProject(\''+p.id+'\',pr=>pr.minecraft.ram.min=Number(this.value))"/>')+
+    field('Maximum RAM (MB)', '<input class="input" type="number" value="'+mc.ram.max+'" onchange="updateProject(\''+p.id+'\',pr=>pr.minecraft.ram.max=Number(this.value))"/>')+
+  '</div>';
+  if(mc.ram.max < mc.ram.min) html += '<p style="color:var(--warn);font-size:11.5px;margin-top:-8px;">\u26a0 Maximum RAM is lower than minimum RAM.</p>';
+
+  const servers = serversFor(p.id);
+  html += '<div style="border-top:1px solid var(--border-soft);padding-top:24px;margin-top:8px;">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><h3 style="font-family:var(--font-display);font-weight:500;font-size:14px;margin:0;">Servers</h3>'+
+    '<button class="link-btn" onclick="addServer(\''+p.id+'\')">+ Add server</button></div>';
+  if(servers.length===0){
+    html += '<p style="text-align:center;padding:24px;border:1px dashed var(--border-soft);border-radius:8px;color:var(--faint);font-size:13px;">No servers configured.</p>';
+  }else{
+    html += servers.map(s=>{
+      const addrErr = s.address && !/^[a-zA-Z0-9.-]+$/.test(s.address) ? 'Address should be a hostname or IP, without protocol or port.' : null;
+      return '<div class="panel" style="padding:16px;margin-bottom:12px;">'+
+        '<div class="grid-2">'+
+          field('Server name','<input class="input" value="'+esc(s.name)+'" placeholder="Main server" onchange="updateServer(\''+s.id+'\',x=>x.name=this.value)"/>')+
+          field('Address','<input class="input" value="'+esc(s.address)+'" placeholder="play.example.net" onchange="updateServer(\''+s.id+'\',x=>x.address=this.value)"/>'+(addrErr?'<p class="field-hint" style="color:var(--warn);">\u26a0 '+addrErr+'</p>':''))+
+        '</div>'+
+        '<div class="grid-2">'+
+          field('Port','<input class="input" type="number" value="'+s.port+'" onchange="updateServer(\''+s.id+'\',x=>x.port=Number(this.value))"/>')+
+          field('Loader', loaderSelect(s.loader, "updateServer('"+s.id+"',x=>x.loader=this.value)"))+
+        '</div>'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);"><input type="checkbox" '+(s.autoConnect?'checked':'')+' onchange="updateServer(\''+s.id+'\',x=>x.autoConnect=this.checked)"/> Auto-connect</label>'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);"><input type="checkbox" '+(s.isDefault?'checked':'')+' onchange="updateServer(\''+s.id+'\',x=>x.isDefault=this.checked)"/> Default</label>'+
+          '<button class="icon-btn" onclick="deleteServer(\''+s.id+'\')">\ud83d\uddd1</button>'+
+        '</div></div>';
+    }).join('');
+  }
+  html += '</div>';
+  return html;
+}
+
+function studioMods(p){
+  const cat = state.modsCategory;
+  const list = filesFor(p.id, cat);
+  const tabs = '<div class="tabs">'+Object.entries(CATEGORY_LABELS).map(([k,l])=>'<button class="tab-btn '+(cat===k?'active':'')+'" onclick="setState({modsCategory:\''+k+'\'})">'+l+'</button>').join('')+'</div>';
+  const actions = '<div style="display:flex;gap:8px;margin-bottom:16px;">'+
+    '<label class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">Upload .jar<input type="file" accept=".jar" multiple style="display:none;" onchange="handleModUpload(\''+p.id+'\',this.files)"/></label>'+
+    '<button class="btn-secondary" onclick="setState({showModrinth:true, modrinthQuery:\'\', modrinthResults:null, modrinthError:null})">Search Modrinth</button>'+
+  '</div>';
+  const listHtml = list.length===0 ? '<p style="text-align:center;padding:24px;border:1px dashed var(--border-soft);border-radius:8px;color:var(--faint);font-size:13px;">No files in this category yet.</p>' :
+    '<div class="panel">'+list.map(f=>'<div class="list-item"><div><p style="margin:0;font-size:13px;">'+esc(f.name)+'</p>'+
+      '<p style="margin:0;font-size:11px;color:var(--faint);">'+(f.version?esc(f.version)+' \u00b7 ':'')+(f.source==='modrinth'?'Imported from Modrinth':'Uploaded')+'</p></div>'+
+      '<button class="icon-btn" onclick="deleteFile(\''+f.id+'\')">\ud83d\uddd1</button></div>').join('')+'</div>';
+  return studioPageHeader('Mods & files','Manage the files bundled with this launcher \u2014 mods, resource packs, shaderpacks, and configs.')+tabs+actions+listHtml;
+}
+function handleModUpload(projectId, fileList){
+  Array.from(fileList).forEach(file=> addFile(projectId, { category: state.modsCategory, name:file.name, size:file.size, source:'upload' }));
+}
+function renderModrinthModal(p){
+  const results = state.modrinthResults;
+  let body;
+  if(state.modrinthLoading) body = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--dim);font-size:14px;">Searching Modrinth\u2026</div>';
+  else if(state.modrinthError) body = '<div style="text-align:center;padding:60px 24px;"><p style="color:var(--text);font-size:13px;">Modrinth request failed</p><p style="color:var(--faint);font-size:12px;">'+esc(state.modrinthError)+'</p></div>';
+  else if(results===null) body = '<p style="text-align:center;padding:60px;color:var(--faint);font-size:13px;">Search for mods, modpacks, or resource packs on Modrinth.</p>';
+  else if(results.length===0) body = '<p style="text-align:center;padding:60px;color:var(--faint);font-size:13px;">No results found.</p>';
+  else body = results.map(hit=>'<div class="list-item"><div style="display:flex;align-items:center;gap:10px;min-width:0;">'+
+    (hit.icon_url?'<img src="'+hit.icon_url+'" style="width:32px;height:32px;border-radius:5px;"/>':'')+
+    '<div style="min-width:0;"><p style="margin:0;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(hit.title)+'</p>'+
+    '<p style="margin:0;font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(hit.description)+'</p></div></div>'+
+    '<button class="link-btn" onclick="importModrinthHit(\''+p.id+'\',\''+esc(hit.project_id||'')+'\',\''+esc((hit.title||'').replace(/'/g,"\'"))+'\',\''+esc(hit.latest_version||'')+'\')">Import</button></div>').join('');
+
+  return '<div class="modal-overlay" onclick="if(event.target===this) setState({showModrinth:false})">'+
+    '<div class="modal" style="max-width:640px;height:70vh;display:flex;flex-direction:column;">'+
+    '<div class="modal-header">'+
+      '<input class="input" style="border:none;background:none;padding:0;" placeholder="Search Modrinth\u2026" value="'+esc(state.modrinthQuery)+'" oninput="state.modrinthQuery=this.value" onkeydown="if(event.key===\'Enter\') searchModrinth(\''+p.id+'\')" autofocus/>'+
+      '<div style="display:flex;gap:12px;flex-shrink:0;"><button class="link-btn" onclick="searchModrinth(\''+p.id+'\')">Search</button><button class="btn-ghost" onclick="setState({showModrinth:false})">Close</button></div>'+
+    '</div>'+
+    '<div style="flex:1;overflow-y:auto;">'+body+'</div>'+
+    '</div></div>';
+}
+async function searchModrinth(projectId){
+  const p = projectById(projectId);
+  setState({modrinthLoading:true, modrinthError:null});
+  try{
+    const facets = [];
+    if(p.minecraft.loader && p.minecraft.loader!=='vanilla') facets.push(['categories:'+p.minecraft.loader]);
+    if(p.minecraft.version) facets.push(['versions:'+p.minecraft.version]);
+    const params = new URLSearchParams({ query: state.modrinthQuery, limit:'20' });
+    if(facets.length) params.set('facets', JSON.stringify(facets));
+    const res = await fetch('https://api.modrinth.com/v2/search?'+params.toString());
+    if(!res.ok) throw new Error('Modrinth API returned '+res.status);
+    const data = await res.json();
+    setState({ modrinthResults: data.hits||[], modrinthLoading:false });
+  }catch(e){
+    setState({ modrinthError: e.message || 'Failed to reach Modrinth.', modrinthResults:null, modrinthLoading:false });
+  }
+}
+function importModrinthHit(projectId, id, title, version){
+  addFile(projectId, { category: state.modsCategory, name: title, version: version||undefined, source:'modrinth', modrinthId:id });
+}
+
+function studioPreview(p){
+  const servers = serversFor(p.id);
+  const required = filesFor(p.id,'required');
+  const b = p.branding, l = p.layout, f = p.features, mc = p.minecraft, i = p.identity;
+  const sidebarHtml = l.sidebar ? '<div style="width:150px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.1);padding:12px;display:flex;flex-direction:column;gap:4px;">'+
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">'+(b.icon?'<img src="'+b.icon+'" style="width:18px;height:18px;border-radius:4px;"/>':'')+
+    '<span style="font-size:11px;font-weight:500;color:'+b.textColor+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.launcherName||p.name)+'</span></div>'+
+    (l.home?'<div style="font-size:10.5px;padding:6px 8px;border-radius:4px;background:rgba(255,255,255,.1);color:#fff;">Home</div>':'')+
+    (l.news?'<div style="font-size:10.5px;padding:6px 8px;color:rgba(255,255,255,.6);">News</div>':'')+
+    (l.serverSelector?'<div style="font-size:10.5px;padding:6px 8px;color:rgba(255,255,255,.6);">Servers</div>':'')+
+    (f.modManager?'<div style="font-size:10.5px;padding:6px 8px;color:rgba(255,255,255,.6);">Mods</div>':'')+
+    (l.profile?'<div style="font-size:10.5px;padding:6px 8px;color:rgba(255,255,255,.6);">Profile</div>':'')+
+    (l.settings?'<div style="font-size:10.5px;padding:6px 8px;color:rgba(255,255,255,.6);">Settings</div>':'')+
+  '</div>' : '';
+
+  return studioPageHeader('Preview','This reflects your saved configuration.')+
+    '<div class="preview-window" style="aspect-ratio:16/9;'+(b.background?'background-image:url('+b.background+');':'')+'">'+
+    '<div style="display:flex;height:100%;">'+sidebarHtml+
+    '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;">'+
+    (b.logo?'<img src="'+b.logo+'" style="height:40px;object-fit:contain;"/>':'<p style="font-family:var(--font-display);font-weight:600;font-size:18px;color:'+b.textColor+';margin:0;">'+esc(i.launcherName||p.name)+'</p>')+
+    (f.serverStatus?'<p style="font-size:11px;color:'+b.textColor+';opacity:.7;margin:0;">'+(servers.length>0?esc(servers[0].name||servers[0].address)+' \u2014 status unavailable in preview':'No servers configured')+'</p>':'')+
+    '<button style="font-size:12px;padding:8px 24px;border-radius:6px;border:none;font-weight:500;background:'+b.accentColor+';color:'+b.textColor+';">Play</button>'+
+    '<p style="font-size:10px;color:'+b.textColor+';opacity:.5;margin:0;">'+esc(mc.version||'No version set')+' \u00b7 '+esc(mc.loader)+(required.length>0?' \u00b7 '+required.length+' required mods':'')+'</p>'+
+    '</div></div></div>'+
+    '<div class="grid-2" style="margin-top:20px;">'+
+      summaryRow('Publisher', i.publisher||'\u2014')+summaryRow('Servers', servers.length)+
+      summaryRow('Required mods', required.length)+summaryRow('Discord', f.discord?'Enabled':'Disabled')+
+    '</div>';
+}
+function summaryRow(label,val){ return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;"><span style="color:var(--faint);">'+label+'</span><span style="font-weight:500;">'+val+'</span></div>'; }
+
+function validateProjectFull(p){
+  const issues = [];
+  if(!p.identity.launcherName) issues.push('Launcher name is not set (Identity tab).');
+  if(!p.minecraft.version) issues.push('Minecraft version is not set (Minecraft & server tab).');
+  else if(!/^\d+\.\d+(\.\d+)?$/.test(p.minecraft.version)) issues.push('Minecraft version format looks invalid.');
+  if(p.minecraft.loader!=='vanilla' && !p.minecraft.javaRequirement) issues.push('Java requirement is recommended for non-vanilla loaders.');
+  if(serversFor(p.id).length===0) issues.push('No servers configured \u2014 the launcher will have nothing to connect to.');
+  if(p.minecraft.ram.max < p.minecraft.ram.min) issues.push('Maximum RAM is lower than minimum RAM.');
+  return issues;
+}
+function studioBuild(p){
+  const issues = validateProjectFull(p);
+  const builds = buildsFor(p.id);
+  const latest = builds[0]; // buildsFor already sorts newest-first
+  const isRunning = RUNNING_PROJECTS.has(p.id);
+
+  const validationHtml = issues.length===0 ?
+    '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--copper-bright);border:1px solid var(--border-soft);border-radius:8px;padding:10px 14px;">\u2713 Configuration looks valid.</div>' :
+    issues.map(i=>'<div style="display:flex;gap:8px;font-size:13px;color:var(--warn);border:1px solid var(--border-soft);border-radius:8px;padding:10px 14px;margin-bottom:6px;">\u26a0 '+esc(i)+'</div>').join('');
+
+  // Pipeline reflects the ACTUAL status of the most recent build for this
+  // project, not a hardcoded mockup -- a stage only lights up once that real
+  // build has genuinely reached it.
+  const stages = ['queued','starting','building','completed'];
+  let reachedIndex = -1;
+  if(latest){
+    if(latest.status === 'failed'){
+      // Figure out how far it got before failing, from real recorded data.
+      if(latest.progress >= 20) reachedIndex = 2;      // was building
+      else if(latest.startedAt) reachedIndex = 1;       // was starting
+      else reachedIndex = 0;                            // never left queued
+    } else {
+      reachedIndex = stages.indexOf(latest.status);
+    }
+  }
+  const failedAt = latest && latest.status === 'failed';
+  const pipeline = stages.map((label,i)=>{
+    const reached = i <= reachedIndex;
+    const isCurrent = reached && i===reachedIndex && !failedAt && latest.status!=='completed';
+    const dotClass = !latest ? 'dot-neutral' : reached ? (isCurrent?'dot-warn':'dot-ok') : 'dot-neutral';
+    return '<div style="display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 2px;">'+
+      '<span class="dot '+dotClass+'"></span><span style="'+(reached?'':'color:var(--faint);')+'text-transform:capitalize;">'+label+'</span>'+
+      (isCurrent && latest.progress!=null ? '<span style="font-size:10.5px;color:var(--faint);margin-left:auto;">'+latest.progress+'%</span>' : '')+
+    '</div>';
+  }).join('') + (failedAt ? '<div style="display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 2px;"><span class="dot dot-fail"></span><span>Failed</span></div>' : '');
+
+  const buildHistory = builds.length===0 ? '<p style="text-align:center;padding:24px;border:1px dashed var(--border-soft);border-radius:8px;color:var(--faint);font-size:13px;">No builds yet.</p>' :
+    '<div class="panel">'+builds.map(b=>{
+      const inProgress = b.status==='starting' || b.status==='building';
+      return '<div style="padding:10px 16px;border-bottom:1px solid var(--border-soft);">'+
+        '<div style="display:flex;justify-content:space-between;"><span style="font-size:13px;">'+b.id+'</span><span class="badge '+statusBadgeClass(b.status)+'">'+statusLabel(b.status)+(inProgress&&b.progress!=null?' '+b.progress+'%':'')+'</span></div>'+
+        '<p style="margin:4px 0 0;font-size:11px;color:var(--faint);">'+esc(b.log[b.log.length-1])+'</p>'+
+        (b.status==='failed' && b.error ? '<p style="margin:4px 0 0;font-size:11.5px;color:var(--danger);">'+esc(b.error)+'</p>' : '')+
+        '<div style="display:flex;gap:12px;margin-top:6px;">'+
+          (b.status==='completed' ? '<button class="link-btn" onclick="redownloadBuild(\''+b.id+'\')">Download Build</button>' : '')+
+          (b.status==='failed' ? '<button class="link-btn" onclick="retryBuild(\''+p.id+'\')">Retry build</button>' : '')+
+        '</div>'+
+      '</div>';
+    }).join('')+'</div>';
+
+  return studioPageHeader('Generate & build','Turn this configuration into a real project you can compile and distribute.')+
+    '<h3 style="font-family:var(--font-display);font-weight:500;font-size:14px;margin:0 0 10px;">Validation</h3>'+validationHtml+
+    '<h3 style="font-family:var(--font-display);font-weight:500;font-size:14px;margin:20px 0 10px;">Pipeline'+(latest?' (latest build)':'')+'</h3>'+pipeline+
+    '<button class="btn-primary" style="width:auto;margin:12px 0 24px;'+(isRunning?'opacity:.6;':'')+'" '+(isRunning?'disabled':'')+' onclick="generateAndDownload(\''+p.id+'\')">'+(isRunning?'Working\u2026':'\u2b07 Generate & download source (Free)')+'</button>'+
+    renderCloudBuildSection(p)+
+    renderProductionExeSection(p)+
+    '<h3 style="font-family:var(--font-display);font-weight:500;font-size:14px;margin:0 0 10px;">Build history</h3>'+buildHistory;
+}
+
+function planRestrictedPanel(title, requiredPlanLabel, requiredPlanId){
+  return '<div class="panel" style="padding:16px;margin-bottom:16px;">'+
+    '<h3 class="panel-title" style="margin-bottom:8px;">'+title+'</h3>'+
+    '<p style="font-size:13px;color:var(--warn);margin-bottom:10px;">\ud83d\udd12 This requires '+requiredPlanLabel+'.</p>'+
+    '<button class="btn-primary" style="width:auto;" onclick="upgradeTo(\''+requiredPlanId+'\')">Upgrade to '+requiredPlanLabel+'</button>'+
+  '</div>';
+}
+
+function remoteBuildProgressPanel(){
+  const rb = state.remoteBuild;
+  if(!rb) return '';
+  return '<div class="panel" style="padding:16px;margin-bottom:16px;">'+
+    '<div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="font-size:13px;font-weight:500;">'+rb.id+'</span>'+
+    '<span class="badge '+statusBadgeClass(rb.status)+'">'+statusLabel(rb.status)+(rb.status==='building'||rb.status==='starting'?' '+(rb.progress||0)+'%':'')+'</span></div>'+
+    '<div class="log-box" style="margin-bottom:8px;">'+(rb.log||[]).map(l=>'<p>'+esc(l)+'</p>').join('')+'</div>'+
+    (rb.status==='failed' && rb.error ? '<p style="color:var(--danger);font-size:12.5px;margin:0 0 8px;">'+esc(rb.error)+'</p>' : '')+
+    (rb.status==='completed' ? '<a class="btn-primary" style="width:auto;text-decoration:none;display:inline-block;" href="/api/builds/'+rb.id+'/download">Download Build</a>' : '')+
+  '</div>';
+}
+
+function renderCloudBuildSection(p){
+  const plan = currentUser.limits;
+  if(!plan.cloudBuild){
+    return planRestrictedPanel('Cloud build (real compiled Linux .AppImage)', 'Pro', 'pro');
+  }
+  const busy = state.remoteBuild && ['queued','starting','building'].includes(state.remoteBuild.status) && state.remoteBuild.projectId===p.id;
+  return '<div class="panel" style="padding:16px;margin-bottom:16px;">'+
+    '<h3 class="panel-title" style="margin-bottom:8px;">Cloud build</h3>'+
+    '<p style="font-size:12.5px;color:var(--dim);margin-bottom:10px;">Actually compiles a real Linux .AppImage on the server -- not a mockup.</p>'+
+    '<button class="btn-primary" style="width:auto;'+(busy?'opacity:.6;':'')+'" '+(busy?'disabled':'')+' onclick="requestRemoteBuild(\''+p.id+'\',\'cloud\')">'+(busy?'Building\u2026':'Request cloud build')+'</button>'+
+  '</div>'+
+  (state.remoteBuild && state.remoteBuild.projectId===p.id && state.remoteBuild.kind==='cloud' ? remoteBuildProgressPanel() : '');
+}
+
+function renderProductionExeSection(p){
+  const plan = currentUser.limits;
+  if(!plan.productionExe){
+    return planRestrictedPanel('Production Windows .exe', 'Dev', 'dev');
+  }
+  const busy = state.remoteBuild && ['queued','starting','building'].includes(state.remoteBuild.status) && state.remoteBuild.projectId===p.id;
+  return '<div class="panel" style="padding:16px;margin-bottom:16px;">'+
+    '<h3 class="panel-title" style="margin-bottom:8px;">Production .exe</h3>'+
+    '<p style="font-size:12.5px;color:var(--dim);margin-bottom:10px;">Actually cross-compiles a real signed-ready Windows installer on the server.</p>'+
+    '<button class="btn-primary" style="width:auto;'+(busy?'opacity:.6;':'')+'" '+(busy?'disabled':'')+' onclick="requestRemoteBuild(\''+p.id+'\',\'production_exe\')">'+(busy?'Building\u2026':'Request production .exe')+'</button>'+
+  '</div>'+
+  (state.remoteBuild && state.remoteBuild.projectId===p.id && state.remoteBuild.kind==='production_exe' ? remoteBuildProgressPanel() : '');
+}
+
+async function upgradeTo(planId){
+  try{
+    const res = await fetch('/api/billing/checkout/'+planId, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ currency: state.billingCurrency })
+    });
+    const body = await res.json();
+    if(!res.ok){
+      alert(body.message || 'Checkout is not available yet: '+(body.error||res.status));
+      return;
+    }
+    window.location.href = body.checkoutUrl;
+  }catch(e){
+    alert('Could not reach billing: '+e.message);
+  }
+}
+
+async function requestRemoteBuild(projectId, kind){
+  const p = projectById(projectId);
+  const servers = serversFor(projectId);
+  const endpoint = kind === 'cloud' ? 'cloud' : 'production-exe';
+  try{
+    const res = await fetch('/api/builds/'+endpoint+'/'+projectId, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ project: p, servers })
+    });
+    const body = await res.json();
+    if(!res.ok){
+      alert(body.message || body.error || 'Could not start build.');
+      return;
+    }
+    state.remoteBuild = { id: body.buildId, projectId, kind, status:'queued', progress:0, log:['Build queued.'] };
+    render();
+    pollRemoteBuild(body.buildId);
+  }catch(e){
+    alert('Could not reach the backend: '+e.message);
+  }
+}
+
+async function pollRemoteBuild(buildId){
+  try{
+    const res = await fetch('/api/builds/'+buildId, { credentials:'include' });
+    if(!res.ok) return;
+    const body = await res.json();
+    if(!state.remoteBuild || state.remoteBuild.id !== buildId) return; // superseded
+    state.remoteBuild = { ...state.remoteBuild, status: body.status, progress: body.progress, log: body.log, error: body.error };
+    render();
+    if(body.status === 'queued' || body.status === 'starting' || body.status === 'building'){
+      setTimeout(() => pollRemoteBuild(buildId), 2000);
+    }
+  }catch(e){
+    setTimeout(() => pollRemoteBuild(buildId), 4000); // transient network hiccup -- keep trying
+  }
+}
+
+
+
+
+async function generateAndDownload(projectId){
+  // Prevent duplicate/concurrent processing of the same project's build.
+  if(RUNNING_PROJECTS.has(projectId)){
+    alert('A build is already running for this project. Wait for it to finish before starting another.');
+    return;
+  }
+  RUNNING_PROJECTS.add(projectId);
+
+  const buildId = requestBuild(projectId);
+  render(); // show the new queued build immediately, no refresh needed
+
+  const timeoutMs = Math.max(5, (DB.settings && DB.settings.buildTimeoutSec) || DEFAULT_SETTINGS.buildTimeoutSec) * 1000;
+  let timedOut = false;
+  const timeoutHandle = setTimeout(() => {
+    timedOut = true;
+    failBuild(buildId, 'Build timed out after '+(timeoutMs/1000)+'s.');
+    // If the code below is stuck forever on a dead await (a promise that
+    // never settles), its own finally{} block will never run to release
+    // this guard -- release it here instead, or the project could never
+    // start another build again even though the UI correctly shows failed.
+    RUNNING_PROJECTS.delete(projectId);
+  }, timeoutMs);
+
+  try{
+    const p = projectById(projectId);
+    if(!p) throw new Error('Project no longer exists (it may have been deleted while this build was queued).');
+
+    setBuildStatus(buildId, 'starting', 5);
+    logBuild(buildId, 'Validating project configuration\u2026');
+
+    const issues = validateProjectFull(p);
+    if(issues.length) throw new Error(issues.join(' '));
+    logBuild(buildId, 'Project validated.');
+
+    setBuildStatus(buildId, 'building', 30);
+    logBuild(buildId, 'Requesting real source package from the backend\u2026');
+
+    const servers = serversFor(projectId);
+    const res = await fetch('/api/builds/source/'+projectId, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: p, servers })
+    });
+    if(timedOut) return;
+
+    if(!res.ok){
+      let msg = 'Backend returned status '+res.status;
+      try{ const errBody = await res.json(); msg = errBody.message || errBody.error || msg; }catch(_e){}
+      throw new Error(msg);
+    }
+
+    setBuildStatus(buildId, 'building', 80);
+    const blob = await res.blob();
+    if(timedOut) return;
+
+    // Never mark completed unless a real, non-empty artifact was produced.
+    if(!blob || blob.size === 0){
+      throw new Error('Backend returned an empty artifact -- refusing to mark this build as completed.');
+    }
+
+    const cd = res.headers.get('Content-Disposition') || '';
+    const nameMatch = cd.match(/filename="([^"]+)"/);
+    const filename = nameMatch ? nameMatch[1] : (p.identity.launcherName||p.name).replace(/\s+/g,'-').toLowerCase()+'-source.zip';
+    ARTIFACTS[buildId] = { blob, filename };
+
+    clearTimeout(timeoutHandle);
+    completeBuild(buildId, filename, blob.size);
+
+    // The build itself is done and the artifact is real and verified above --
+    // auto-starting the download is a convenience, not part of the build. If
+    // the browser blocks/fails it, that must never retroactively flip an
+    // already-completed build back to failed (the artifact still exists and
+    // is downloadable via the "Download Build" button either way).
+    const autoDownload = DB.settings ? DB.settings.autoDownload : DEFAULT_SETTINGS.autoDownload;
+    if(autoDownload){
+      try{
+        downloadBlob(blob, filename);
+      }catch(downloadErr){
+        logBuild(buildId, 'Note: automatic download did not start ('+downloadErr.message+'). Use the "Download Build" button below to get the artifact.');
+      }
+    }else{
+      logBuild(buildId, 'Auto-download is turned off in Settings. Use the "Download Build" button below to get the artifact.');
+    }
+  }catch(e){
+    clearTimeout(timeoutHandle);
+    if(!timedOut) failBuild(buildId, e && e.message ? e.message : String(e));
+  }finally{
+    RUNNING_PROJECTS.delete(projectId);
+  }
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Re-download a completed build's real artifact without re-running the build.
+// Only works for builds completed in the current tab session -- the raw zip
+// bytes aren't persisted to localStorage (they'd blow the quota instantly and
+// re-trigger the exact bug we just fixed), so a page reload clears them. This
+// is stated plainly in the UI rather than faking persistence.
+function redownloadBuild(buildId){
+  const artifact = ARTIFACTS[buildId];
+  if(!artifact){
+    alert("This build's artifact is no longer available in memory (the page was reloaded since it completed). Click Generate again to produce a fresh download.");
+    return;
+  }
+  downloadBlob(artifact.blob, artifact.filename);
+}
+
+function retryBuild(projectId){
+  generateAndDownload(projectId);
+}
+
+/* ============ AUTH GATE ============ */
+// Real, server-verified session check -- never assume logged-in state,
+// never fall back to a client-side guess. This is the one thing that must
+// succeed against the real backend before anything else renders.
+async function refreshCurrentUser(){
+  try{
+    const res = await fetch('/api/me', { credentials: 'include' });
+    if(res.status === 401){ currentUser = false; render(); return; }
+    if(!res.ok) throw new Error('Unexpected status '+res.status);
+    currentUser = await res.json();
+    render();
+    // Pricing is public info -- fetch it regardless, doesn't need to block
+    // the initial render.
+    fetchPricingData();
+  }catch(e){
+    currentUser = { error: e.message };
+    render();
+  }
+}
+async function fetchPricingData(){
+  try{
+    const res = await fetch('/api/billing/plans', { credentials:'include' });
+    if(res.ok){ pricingData = await res.json(); render(); }
+  }catch(e){ /* Billing section shows a loading/retry state if this never arrives */ }
+}
+async function logout(){
+  await fetch('/auth/logout', { method:'POST', credentials:'include' });
+  currentUser = false;
+  render();
+}
+function planBadge(plan){
+  return { free:'\ud83c\udd93 Free', pro:'\ud83d\udfe3 Pro', dev:'\ud83d\udd35 Dev', owner:'\ud83d\udc51 Owner' }[plan] || plan;
+}
+
+function renderLoginGate(){
+  return '<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">'+
+    '<div class="flame-badge" style="width:44px;height:44px;font-size:22px;">'+icon('flame',22)+'</div>'+
+    '<h1 style="font-family:var(--font-display);font-weight:600;font-size:20px;margin:0;">Vynix Forge</h1>'+
+    '<p style="color:var(--dim);font-size:13.5px;max-width:320px;text-align:center;margin:0;">Sign in with GitHub to create launcher projects and access Free/Pro/Dev build features.</p>'+
+    '<a href="/auth/github/login" class="btn-primary" style="width:auto;text-decoration:none;display:inline-flex;">Sign in with GitHub</a>'+
+  '</div>';
+}
+function renderAuthError(message){
+  return '<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">'+
+    '<p style="color:var(--danger);font-size:13.5px;">Could not reach the backend: '+esc(message)+'</p>'+
+    '<button class="btn-secondary" onclick="refreshCurrentUser()">Retry</button>'+
+  '</div>';
+}
+
+/* ============ ROOT RENDER ============ */
+function render(){
+  if(currentUser === null){
+    document.getElementById('app').innerHTML = '<div style="height:100vh;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:13px;">Loading\u2026</div>';
+    return;
+  }
+  if(currentUser === false){
+    document.getElementById('app').innerHTML = renderLoginGate();
+    return;
+  }
+  if(currentUser.error){
+    document.getElementById('app').innerHTML = renderAuthError(currentUser.error);
+    return;
+  }
+  let body;
+  if(state.route==='overview') body = renderShell(renderOverview());
+  else if(state.route==='projects') body = renderShell(renderProjects());
+  else if(state.route==='servers') body = renderShell(renderServersPage());
+  else if(state.route==='builds') body = renderShell(renderBuildsPage());
+  else if(state.route==='files') body = renderShell(renderFilesPage());
+  else if(state.route==='updates') body = renderShell(renderUpdatesPage());
+  else if(state.route==='settings') body = renderShell(renderSettingsPage());
+  else if(state.route==='studio') body = renderStudio() + (state.showNewProject ? renderNewProjectModal() : '');
+  else body = renderShell(renderOverview());
+  document.getElementById('app').innerHTML = body;
+}
+refreshCurrentUser();
+</script>
+</body>
+</html>
