@@ -84,6 +84,12 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 const projectColumns = db.prepare('PRAGMA table_info(projects)').all().map(column => column.name);
 if(!projectColumns.includes('description')) db.exec("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
 if(!projectColumns.includes('config_json')) db.exec('ALTER TABLE projects ADD COLUMN config_json TEXT');
+const userColumns = db.prepare('PRAGMA table_info(users)').all().map(column => column.name);
+if(!userColumns.includes('email')) db.exec('ALTER TABLE users ADD COLUMN email TEXT');
+if(!userColumns.includes('password_hash')) db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+if(!userColumns.includes('display_name')) db.exec('ALTER TABLE users ADD COLUMN display_name TEXT');
+if(!userColumns.includes('reset_token_hash')) db.exec('ALTER TABLE users ADD COLUMN reset_token_hash TEXT');
+if(!userColumns.includes('reset_token_expires_at')) db.exec('ALTER TABLE users ADD COLUMN reset_token_expires_at INTEGER');
 
 function now(){ return Date.now(); }
 
@@ -104,6 +110,37 @@ function upsertUserFromGitHub(githubId, githubLogin){
 
 function getUserById(id){ return db.prepare('SELECT * FROM users WHERE id=?').get(id); }
 function getUserByGithubId(githubId){ return db.prepare('SELECT * FROM users WHERE github_id=?').get(String(githubId)); }
+function getUserByEmail(email){ return db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get(email); }
+function createLocalUser(email, displayName, passwordHash){
+  const timestamp = now();
+  const info = db.prepare('INSERT INTO users (github_id, github_login, email, display_name, password_hash, plan, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)')
+    .run('local:'+crypto.randomUUID(), email, email, displayName || email.split('@')[0], passwordHash, 'free', timestamp, timestamp);
+  return getUserById(info.lastInsertRowid);
+}
+function upsertUserFromGoogle(googleId, email, displayName){
+  const providerId = 'google:'+String(googleId);
+  const existing = getUserByGithubId(providerId) || getUserByEmail(email);
+  if(existing){
+    db.prepare('UPDATE users SET github_id=?, github_login=?, email=?, display_name=?, updated_at=? WHERE id=?')
+      .run(providerId, email, email, displayName || existing.display_name || email.split('@')[0], now(), existing.id);
+    return getUserById(existing.id);
+  }
+  const timestamp = now();
+  const info = db.prepare('INSERT INTO users (github_id, github_login, email, display_name, plan, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
+    .run(providerId, email, email, displayName || email.split('@')[0], 'free', timestamp, timestamp);
+  return getUserById(info.lastInsertRowid);
+}
+function setPasswordResetToken(userId, tokenHash, expiresAt){
+  db.prepare('UPDATE users SET reset_token_hash=?, reset_token_expires_at=?, updated_at=? WHERE id=?').run(tokenHash, expiresAt, now(), userId);
+}
+function consumePasswordResetToken(tokenHash){
+  const user = db.prepare('SELECT * FROM users WHERE reset_token_hash=? AND reset_token_expires_at>?').get(tokenHash, now());
+  if(user) db.prepare('UPDATE users SET reset_token_hash=NULL, reset_token_expires_at=NULL, updated_at=? WHERE id=?').run(now(), user.id);
+  return user;
+}
+function updatePassword(userId, passwordHash){
+  db.prepare('UPDATE users SET password_hash=?, updated_at=? WHERE id=?').run(passwordHash, now(), userId);
+}
 
 function setUserPlan(userId, plan, actorUserId, reason){
   const before = getUserById(userId);
@@ -215,7 +252,8 @@ function appendBuildLog(id, line){
 
 module.exports = {
   db,
-  upsertUserFromGitHub, getUserById, getUserByGithubId, setUserPlan,
+  upsertUserFromGitHub, upsertUserFromGoogle, createLocalUser, getUserById, getUserByGithubId, getUserByEmail,
+  setPasswordResetToken, consumePasswordResetToken, updatePassword, setUserPlan,
   logAdminAction, listAdminAuditLog,
   countActiveProjects, createProject, getProject, listProjectsForUser, updateProject, deleteProject,
   countBuildsToday, createBuild, getBuild, listBuildsForUser, updateBuild, appendBuildLog,
