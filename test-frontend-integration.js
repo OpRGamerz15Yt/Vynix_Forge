@@ -69,9 +69,9 @@ function check(label, cond){ if(cond){pass++;console.log('PASS:',label);} else {
   const createBody = JSON.parse(createRes.body.toString());
   check('Project created', createRes.status === 201 && createBody.id);
 
-  console.log('\n=== Free-tier limit enforced via the same API the frontend calls ===');
+  console.log('\n=== Free plan supports multiple projects via the same API the frontend calls ===');
   const secondProj = await req('/api/projects', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: 'Second' }) });
-  check('Second project blocked (403)', secondProj.status === 403);
+  check('Second project created', secondProj.status === 201);
 
   console.log('\n=== Real source build via the endpoint the frontend now calls ===');
   const sampleProject = {

@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id),
   name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  config_json TEXT,
   archived INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -77,6 +79,12 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 );
 `);
 
+// Keep existing SQLite deployments compatible with the project configuration
+// fields introduced after the first schema version.
+const projectColumns = db.prepare('PRAGMA table_info(projects)').all().map(column => column.name);
+if(!projectColumns.includes('description')) db.exec("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
+if(!projectColumns.includes('config_json')) db.exec('ALTER TABLE projects ADD COLUMN config_json TEXT');
+
 function now(){ return Date.now(); }
 
 // ===== Users =====
@@ -117,12 +125,30 @@ function listAdminAuditLog(limit){
 function countActiveProjects(userId){
   return db.prepare('SELECT COUNT(*) c FROM projects WHERE user_id=? AND archived=0').get(userId).c;
 }
-function createProject(id, userId, name){
-  db.prepare('INSERT INTO projects (id,user_id,name,created_at,updated_at) VALUES (?,?,?,?,?)').run(id,userId,name,now(),now());
+function createProject(id, userId, name, description='', config=null){
+  db.prepare('INSERT INTO projects (id,user_id,name,description,config_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?)')
+    .run(id,userId,name,description,config ? JSON.stringify(config) : null,now(),now());
   return db.prepare('SELECT * FROM projects WHERE id=?').get(id);
 }
 function getProject(id){ return db.prepare('SELECT * FROM projects WHERE id=?').get(id); }
 function listProjectsForUser(userId){ return db.prepare('SELECT * FROM projects WHERE user_id=?').all(userId); }
+function updateProject(id, userId, patch){
+  const allowed = { name:'name', description:'description', archived:'archived', config:'config_json' };
+  const fields = Object.keys(patch).filter(key => allowed[key] && patch[key] !== undefined);
+  if(fields.length === 0) return getProject(id);
+  const assignments = fields.map(key => `${allowed[key]}=?`).join(', ');
+  const values = fields.map(key => key === 'config' ? JSON.stringify(patch[key]) : patch[key]);
+  values.push(now(), id, userId);
+  db.prepare(`UPDATE projects SET ${assignments}, updated_at=? WHERE id=? AND user_id=?`).run(...values);
+  return getProject(id);
+}
+function deleteProject(id, userId){
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM builds WHERE project_id=? AND user_id=?').run(id,userId);
+    return db.prepare('DELETE FROM projects WHERE id=? AND user_id=?').run(id,userId).changes;
+  });
+  return transaction();
+}
 
 // ===== Builds =====
 function countBuildsToday(userId){
@@ -191,7 +217,7 @@ module.exports = {
   db,
   upsertUserFromGitHub, getUserById, getUserByGithubId, setUserPlan,
   logAdminAction, listAdminAuditLog,
-  countActiveProjects, createProject, getProject, listProjectsForUser,
+  countActiveProjects, createProject, getProject, listProjectsForUser, updateProject, deleteProject,
   countBuildsToday, createBuild, getBuild, listBuildsForUser, updateBuild, appendBuildLog,
   completeBuildWithArtifact, failBuild, sweepInterruptedBuilds,
   createWebhook, listWebhooksForUser, deleteWebhook, webhooksForEvent

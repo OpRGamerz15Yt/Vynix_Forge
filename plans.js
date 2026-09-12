@@ -18,7 +18,7 @@ const PLANS = {
     id: 'free',
     label: 'Free',
     prices: { USD: 0, BDT: 0 },
-    maxActiveProjects: 1,
+    maxActiveProjects: Infinity,
     sourceExport: true,     // download the generated source folder
     cloudBuild: false,      // Vynix-run build via GitHub Actions
     productionExe: false,   // Dev-tier "production" Windows build
@@ -29,14 +29,14 @@ const PLANS = {
     privateProjects: false,
     launcherHosting: false,
     storageMb: 0,
-    maxBuildsPerDay: 3,       // still rate-limited even for the free "generate source" action
+    maxBuildsPerDay: 20,      // infrastructure protection without making Free a demo
     purchasable: true,
     stripePriceIds: { USD: null, BDT: null } // free -- never actually charged
   },
   pro: {
     id: 'pro',
     label: 'Pro',
-    prices: { USD: 4.99, BDT: 500 },
+    prices: { USD: null, BDT: 299 },
     maxActiveProjects: 10,          // "configurable" per spec -- this is the current default
     sourceExport: true,
     cloudBuild: true,
@@ -60,7 +60,7 @@ const PLANS = {
   dev: {
     id: 'dev',
     label: 'Dev',
-    prices: { USD: 9.99, BDT: 1000 },
+    prices: { USD: null, BDT: 699 },
     maxActiveProjects: Infinity,
     sourceExport: true,
     cloudBuild: true,
@@ -107,14 +107,12 @@ function planAllows(planId, feature){
   return !!plan[feature];
 }
 
-// Formats a plan's price in the given currency, per the spec's exact rules:
-// Owner is always "<symbol>\u221e/sec" (never a numeric amount, in ANY
-// currency), and BDT amounts with no decimals get thousands separators
-// (matching the example "৳1,000/month").
+// Formats public pricing. Owner is private and never represented as a
+// purchasable numeric price.
 function formatPrice(planId, currency){
   const plan = getPlan(planId);
   const symbol = CURRENCY_SYMBOLS[currency] || currency;
-  if(planId === 'owner') return symbol + '\u221e/sec';
+  if(planId === 'owner') return 'Private - Vynix Studio';
   const amount = plan.prices[currency];
   if(amount == null) return 'N/A';
   if(amount === 0) return symbol + '0/month';

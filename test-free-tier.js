@@ -40,9 +40,9 @@ const sampleProject = {
   const p1 = await agent.post('/api/projects').send({ name: 'Launcher One' });
   console.log('Status:', p1.status, '| id:', p1.body.id);
 
-  console.log('\n=== TEST: Create second project (should be BLOCKED -- free = 1) ===');
+  console.log('\n=== TEST: Create second project (Free supports multiple projects) ===');
   const p2 = await agent.post('/api/projects').send({ name: 'Launcher Two' });
-  console.log('Status (expect 403):', p2.status, '| message:', p2.body.message);
+  console.log('Status (expect 201):', p2.status, '| id:', p2.body.id);
 
   console.log('\n=== TEST: Request real source build (should succeed, real zip streamed) ===');
   const sourceRes = await agent.post(`/api/builds/source/${p1.body.id}`)

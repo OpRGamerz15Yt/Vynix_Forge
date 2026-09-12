@@ -12,10 +12,10 @@ folder-creation step required. `node_modules` is the only folder, and npm
 creates that itself when you run `npm install` -- you never create it by
 hand.
 
-This is a separate project from the existing static `index.html` Vynix
-Forge dashboard, though `index.html` is now included here too and gets
-served directly by this backend (see "Setup" below) -- so this one folder
-is the whole product, frontend and backend together.
+`index.html` is the authenticated Vynix Forge control panel served directly by
+this backend (see "Setup" below). Project identity, ownership, plan limits,
+and project configuration are stored and enforced server-side; the browser
+keeps only a local working cache for the richer builder tabs.
 
 ## What's real vs. what needs your configuration
 
