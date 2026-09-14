@@ -1,8 +1,11 @@
 const Database = require('better-sqlite3');
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const db = new Database(path.join(__dirname, 'vynix.sqlite'));
+const dataDir = process.env.DATA_DIR || __dirname;
+fs.mkdirSync(dataDir, { recursive: true });
+const db = new Database(path.join(dataDir, 'vynix.sqlite'));
 db.pragma('journal_mode = WAL');
 
 db.exec(`

@@ -5,8 +5,9 @@ const db = require('./db');
 const { generateFiles } = require('./electronTemplate');
 const { dispatchEvent } = require('./webhookDispatch');
 
-const WORKSPACE_ROOT = path.join(__dirname, 'build-workspace');
-const ARTIFACTS_ROOT = path.join(__dirname, 'artifacts');
+const dataDir = process.env.DATA_DIR || __dirname;
+const WORKSPACE_ROOT = path.join(dataDir, 'build-workspace');
+const ARTIFACTS_ROOT = path.join(dataDir, 'artifacts');
 fs.mkdirSync(WORKSPACE_ROOT, { recursive: true });
 fs.mkdirSync(ARTIFACTS_ROOT, { recursive: true });
 
