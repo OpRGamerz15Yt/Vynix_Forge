@@ -3,8 +3,15 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const dataDir = process.env.DATA_DIR || __dirname;
-fs.mkdirSync(dataDir, { recursive: true });
+let dataDir = process.env.DATA_DIR || __dirname;
+try{
+  fs.mkdirSync(dataDir, { recursive: true });
+}catch(error){
+  if(error.code !== 'EACCES' && error.code !== 'EROFS') throw error;
+  dataDir = path.join(require('os').tmpdir(), 'vynix-forge-data');
+  fs.mkdirSync(dataDir, { recursive: true });
+  console.warn(`DATA_DIR is not writable; using temporary storage at ${dataDir}.`);
+}
 const db = new Database(path.join(dataDir, 'vynix.sqlite'));
 db.pragma('journal_mode = WAL');
 

@@ -5,7 +5,15 @@ const db = require('./db');
 const { generateFiles } = require('./electronTemplate');
 const { dispatchEvent } = require('./webhookDispatch');
 
-const dataDir = process.env.DATA_DIR || __dirname;
+let dataDir = process.env.DATA_DIR || require('os').tmpdir() + '/vynix-forge-data';
+try{
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.accessSync(dataDir, fs.constants.W_OK);
+}catch(error){
+  if(error.code !== 'EACCES' && error.code !== 'EROFS') throw error;
+  dataDir = require('os').tmpdir() + '/vynix-forge-data';
+  fs.mkdirSync(dataDir, { recursive: true });
+}
 const WORKSPACE_ROOT = path.join(dataDir, 'build-workspace');
 const ARTIFACTS_ROOT = path.join(dataDir, 'artifacts');
 fs.mkdirSync(WORKSPACE_ROOT, { recursive: true });
