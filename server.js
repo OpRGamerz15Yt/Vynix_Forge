@@ -10,6 +10,24 @@ const { getOwnerUserId } = require('./ownerAuth');
 
 const app = express();
 
+const allowedOrigins = new Set([
+  process.env.APP_URL,
+  'https://vynixforge.indevs.in',
+  'https://www.vynixforge.indevs.in'
+].filter(Boolean));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if(origin && allowedOrigins.has(origin)){
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+    res.setHeader('Vary', 'Origin');
+  }
+  if(req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // CRITICAL ORDERING: the Stripe webhook needs the raw request body to verify
 // its signature, so it must be registered with express.raw() BEFORE the
 // global express.json() middleware below -- otherwise json() would already
@@ -29,7 +47,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-only-insecure-secret-change-me',
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' }
+  cookie: { httpOnly: true, sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', secure: process.env.NODE_ENV === 'production' }
 }));
 
 app.use('/auth', authRouter);
