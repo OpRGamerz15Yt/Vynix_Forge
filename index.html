@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VynixForge — Minecraft Launcher Builder by Vynix Studio</title>
+<meta name="description" content="VynixForge is Vynix Studio's web-based Minecraft Launcher Builder. Configure, customize and preview your own launcher.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%23ff7a33%22/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="anim">
+
+<div id="app"></div>
+<div class="toast-stack" id="toastStack"></div>
+<div id="modalRoot"></div>
+<div class="overlay-scrim" id="navScrim"></div>
+
+<script>
+/* ===========================================================
+   VynixForge — Application Script
+   All state is local (localStorage). No backend is assumed to
+   exist. The BuildService object below is the ONLY place that
+   would talk to a real build API — see BUILD SERVICE section.
+=========================================================== */
+"use strict";
+/* ===================== CONSTANTS ===================== */
+const LS_PROJECTS = "vynixforge.projects.v1";
+const LS_SETTINGS = "vynixforge.settings.v1";
+
+const MC_VERSIONS = ["1.21.4","1.21.3","1.21.1","1.21","1.20.6","1.20.4","1.20.1","1.19.4","1.18.2","1.17.1","1.16.5","1.12.2"];
+const LOADERS = ["Vanilla","Fabric","Forge","NeoForge"];
+const JAVA_VERSIONS = ["Java 8","Java 17","Java 21"];
+const RESOLUTIONS = ["854x480","1280x720","1366x768","1600x900","1920x1080","2560x1440"];
+const BUTTON_STYLES = ["Rounded","Sharp","Pill"];
+const FONTS = ["Chakra Petch","Inter","JetBrains Mono","Rajdhani","Sora"];
+const THEMES = [
+  {id:"ember", label:"Ember Forge", accent:"#ff7a33", secondary:"#63b7d6"},
+  {id:"emerald", label:"Emerald Depths", accent:"#3ecf8e", secondary:"#8b7bdb"},
+  {id:"violet", label:"End Portal", accent:"#a97bff", secondary:"#33d6c0"},
+  {id:"crimson", label:"Nether Crimson", accent:"#ff4d5e", secondary:"#ffb648"},
+  {id:"azure", label:"Diamond Azure", accent:"#4fc3ff", secondary:"#8bffb0"}
+];
+const BUILD_STATES = ["ready","validating","queued","building","packaging","completed","failed"];
+
+/* The build backend is NOT connected in this deployment.
+   To connect a real build service, set BUILD_API_BASE below to
+   your API origin, e.g. "https://build-api.vynixstudio.dev" */
+const BUILD_API_BASE = null;
+
+/* ===================== STORAGE ===================== */
+function loadProjects(){
+  try{
+    const raw = localStorage.getItem(LS_PROJECTS);
+    if(!raw) return [];
+    const parsed = JSON.parse(raw);
+    if(!Array.isArray(parsed)) return [];
+    return parsed;
+  }catch(e){ console.error("Failed to load projects", e); return []; }
+}
+function saveProjects(list){
+  try{
+    localStorage.setItem(LS_PROJECTS, JSON.stringify(list));
+    return true;
+  }catch(e){
+    console.error("Failed to save projects", e);
+    toast("Couldn't save — local storage may be full.", "error");
+    return false;
+  }
+}
+function defaultSettings(){
+  return {
+    theme:"dark",
+    accent:"ember",
+    compact:false,
+    animations:true,
+    autosave:true,
+    discordEnabled:false,
+    discordUrl:""
+  };
+}
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem(LS_SETTINGS);
+    if(!raw) return defaultSettings();
+    return Object.assign(defaultSettings(), JSON.parse(raw));
+  }catch(e){ return defaultSettings(); }
+}
+function saveSettings(s){
+  try{ localStorage.setItem(LS_SETTINGS, JSON.stringify(s)); }catch(e){ console.error(e); }
+}
+
+/* ===================== APP STATE ===================== */
+const state = {
+  projects: loadProjects(),
+  settings: loadSettings(),
+  route: parseHash(),
+  navOpen: false
+};
+
+/* ===================== UTILS ===================== */
+function uid(prefix){
+  return (prefix||"id") + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+}
+function escapeHtml(str){
+  if(str === null || str === undefined) return "";
+  return String(str).replace(/[&<>"']/g, ch => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[ch]));
+}
+function escapeAttr(str){ return escapeHtml(str).replace(/`/g,"&#96;"); }
+function clamp(n,min,max){ n = Number(n); if(isNaN(n)) return min; return Math.min(max, Math.max(min, n)); }
+function isValidUrl(str){
+  if(!str) return false;
+  try{ const u = new URL(str); return u.protocol === "http:" || u.protocol === "https:"; }
+  catch(e){ return false; }
+}
+function isValidHex(str){ return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(str||""); }
+function isValidIp(str){
+  if(!str) return false;
+  // allow hostnames and IPv4
+  return /^[a-zA-Z0-9]([a-zA-Z0-9\-\.]{0,253}[a-zA-Z0-9])?$/.test(str.trim());
+}
+function isValidPort(n){ n = Number(n); return Number.isInteger(n) && n >= 1 && n <= 65535; }
+function isValidMcVersion(str){ return /^\d+\.\d+(\.\d+)?$/.test((str||"").trim()); }
+function formatDate(ts){
+  if(!ts) return "—";
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) + " · " +
+         d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+}
+function timeAgo(ts){
+  if(!ts) return "—";
+  const s = Math.floor((Date.now()-ts)/1000);
+  if(s < 60) return "just now";
+  if(s < 3600) return Math.floor(s/60)+"m ago";
+  if(s < 86400) return Math.floor(s/3600)+"h ago";
+  if(s < 604800) return Math.floor(s/86400)+"d ago";
+  return formatDate(ts);
+}
+function readFileAsDataUrl(file, maxBytes){
+  return new Promise((resolve,reject) => {
+    if(!file) return reject(new Error("No file"));
+    if(!file.type || !file.type.startsWith("image/")){
+      return reject(new Error("Only image files are allowed."));
+    }
+    if(maxBytes && file.size > maxBytes){
+      return reject(new Error("Image is too large (max " + Math.round(maxBytes/1024/1024) + "MB)."));
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Couldn't read file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ===================== TOASTS ===================== */
+const ICONS = {
+  success: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M8.3 13.3 5 10l1.4-1.4L8.3 10.5l5.3-5.3L15 6.6z"/></svg>',
+  error: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 12H9v-2h2zm0-4H9V5h2z"/></svg>',
+  info: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 12H9V9h2zm0-6H9V6h2z"/></svg>'
+};
+function toast(msg, type){
+  type = type || "info";
+  const stack = document.getElementById("toastStack");
+  const el = document.createElement("div");
+  el.className = "toast " + type;
+  el.innerHTML = (ICONS[type]||ICONS.info) + "<div>" + escapeHtml(msg) + "</div>";
+  stack.appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition="opacity .25s"; setTimeout(()=>el.remove(), 260); }, 3600);
+}
+
+/* ===================== MODAL ===================== */
+function closeModal(){
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = "";
+}
+function openModal({title, bodyHtml, actions, wide}){
+  const root = document.getElementById("modalRoot");
+  const actionsHtml = (actions||[]).map(a =>
+    `<button class="btn ${a.cls||''}" data-modal-action="${escapeAttr(a.id)}">${escapeHtml(a.label)}</button>`
+  ).join("");
+  root.innerHTML = `
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal ${wide?'wide':''}" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <div class="modal-title">${escapeHtml(title)}</div>
+          <button class="btn btn-icon btn-ghost" data-modal-action="__close">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 6l8 8M14 6l-8 8" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">${bodyHtml}</div>
+        ${actionsHtml ? `<div class="modal-actions">${actionsHtml}</div>` : ""}
+      </div>
+    </div>`;
+  document.getElementById("modalOverlay").addEventListener("click", (e) => {
+    if(e.target.id === "modalOverlay") closeModal();
+  });
+  root.querySelectorAll("[data-modal-action]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-modal-action");
+      if(id === "__close"){ closeModal(); return; }
+      const action = (actions||[]).find(a => a.id === id);
+      if(action && action.onClick) action.onClick();
+    });
+  });
+}
+
+/* ===================== PROJECT MODEL ===================== */
+function newProjectData({name, description, mcVersion, loader}){
+  const now = Date.now();
+  return {
+    id: uid("proj"),
+    name: name || "Untitled Launcher",
+    description: description || "",
+    createdAt: now,
+    updatedAt: now,
+    status: "draft", // draft | configured | validated | built
+    minecraft: {
+      version: mcVersion || "1.21.1",
+      loader: loader || "Fabric",
+      javaVersion: "Java 21",
+      ramMin: 2,
+      ramMax: 4,
+      jvmArgs: "-XX:+UseG1GC -XX:+ParallelRefProcEnabled",
+      gameDirectory: "%appdata%/.vynixforge/" + slugify(name || "launcher"),
+      resolution: "1280x720",
+      fullscreen: false,
+      launchArgs: ""
+    },
+    server: {
+      enabled: false,
+      name: "",
+      ip: "",
+      port: 25565,
+      defaultServer: false,
+      autoConnect: false,
+      icon: null
+    },
+    mods: [],
+    resourcePacks: [],
+    shaders: [],
+    branding: {
+      launcherName: name || "My Launcher",
+      logo: null,
+      icon: null,
+      background: null,
+      accentColor: "#ff7a33",
+      secondaryColor: "#63b7d6",
+      textColor: "#f4eee2",
+      font: "Chakra Petch",
+      loadingScreenText: "Loading your world…",
+      buttonStyle: "Rounded",
+      theme: "ember"
+    },
+    discord: { enabled: state.settings ? !!state.settings.discordEnabled : false, url: state.settings ? state.settings.discordUrl : "" },
+    build: {
+      status: "ready", // ready | validating | queued | building | packaging | completed | failed
+      buildId: null,
+      launcherVersion: "1.0.0",
+      createdTime: null,
+      logs: []
+    }
+  };
+}
+function slugify(str){
+  return (str||"launcher").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"") || "launcher";
+}
+function getProject(id){ return state.projects.find(p => p.id === id); }
+function persistProjects(){ saveProjects(state.projects); }
+function createProject(data){
+  const p = newProjectData(data);
+  state.projects.unshift(p);
+  persistProjects();
+  return p;
+}
+function touchProject(p){ p.updatedAt = Date.now(); }
+function updateProject(id, mutator){
+  const p = getProject(id);
+  if(!p) return null;
+  mutator(p);
+  touchProject(p);
+  persistProjects();
+  return p;
+}
+function deleteProject(id){
+  state.projects = state.projects.filter(p => p.id !== id);
+  persistProjects();
+}
+function duplicateProject(id){
+  const p = getProject(id);
+  if(!p) return null;
+  const copy = JSON.parse(JSON.stringify(p));
+  copy.id = uid("proj");
+  copy.name = p.name + " (Copy)";
+  copy.createdAt = Date.now();
+  copy.updatedAt = Date.now();
+  copy.status = "draft";
+  copy.build = { status:"ready", buildId:null, launcherVersion: p.build.launcherVersion || "1.0.0", createdTime:null, logs:[] };
+  state.projects.unshift(copy);
+  persistProjects();
+  return copy;
+}
+function renameProject(id, name){
+  updateProject(id, p => { p.name = name; });
+}
+
+/* ===================== ROUTER ===================== */
+function parseHash(){
+  const h = location.hash.replace(/^#\/?/, "");
+  const parts = h.split("/").filter(Boolean);
+  if(parts.length === 0) return { view:"dashboard" };
+  if(parts[0] === "project" && parts[1]) return { view:"project", id:parts[1], step: parts[2] || "overview" };
+  return { view: parts[0] || "dashboard" };
+}
+window.addEventListener("hashchange", () => { state.route = parseHash(); state.navOpen = false; render(); });
+
+function go(hash){ location.hash = hash; }
+
+const NAV_ICONS = {
+  dashboard:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 10.5 10 4l7 6.5V17a1 1 0 01-1 1h-4v-5H8v5H4a1 1 0 01-1-1z"/></svg>',
+  projects:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 5a1 1 0 011-1h4l1.5 2H16a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1z"/></svg>',
+  create:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v5h5a1 1 0 010 2h-5v5a1 1 0 01-2 0v-5H4a1 1 0 010-2h5V4a1 1 0 011-1z"/></svg>',
+  overview:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z"/></svg>',
+  minecraft:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 3h14v14H3z" opacity=".15"/><path d="M6 6h3v3H6zM11 6h3v3h-3zM6 11h3v3H6zM11 11h3v3h-3z"/></svg>',
+  server:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 4h14v4H3zM3 12h14v4H3z" opacity=".8"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="14" r="1"/></svg>',
+  mods:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l2 3 3.4-1-1 3.4 3 2-3 2 1 3.4-3.4-1-2 3-2-3-3.4 1 1-3.4-3-2 3-2-1-3.4 3.4 1z"/></svg>',
+  packs:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 6l6-3 6 3v8l-6 3-6-3z" opacity=".2"/><path d="M4 6l6-3 6 3-6 3z"/><path d="M4 6v8l6 3v-8z" opacity=".55"/></svg>',
+  shaders:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l6 10-6 6-6-6z"/></svg>',
+  branding:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 13c0-5 3-9 7-9s7 4 7 9c-2 1.5-4.5 2-7 2s-5-.5-7-2z" opacity=".85"/><circle cx="10" cy="9" r="2" opacity=".4"/></svg>',
+  preview:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 4c-4.4 0-7.5 3-8.6 6C2.5 13 5.6 16 10 16s7.5-3 8.6-6c-1.1-3-4.2-6-8.6-6zm0 9.5A3.5 3.5 0 1110 6.5a3.5 3.5 0 010 7z"/></svg>',
+  validate:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M8.3 13.3 5 10l1.4-1.4L8.3 10.5l5.3-5.3L15 6.6z"/></svg>',
+  build:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1.6 3.3L15 6l-2.4 2.6L13 12l-3-1.7L7 12l.4-3.4L5 6l3.4-.7z"/></svg>',
+  export:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2v9m0 0l3-3m-3 3L7 8M4 14v3a1 1 0 001 1h10a1 1 0 001-1v-3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  settings:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 6.5A3.5 3.5 0 1010 13.5 3.5 3.5 0 0010 6.5zM17 10a6.9 6.9 0 00-.1-1.2l1.7-1.3-1.7-3-2 .8a7 7 0 00-2-1.2l-.3-2.1H8.4l-.3 2.1a7 7 0 00-2 1.2l-2-.8-1.7 3 1.7 1.3a7 7 0 000 2.4L2.4 12.5l1.7 3 2-.8a7 7 0 002 1.2l.3 2.1h3.2l.3-2.1a7 7 0 002-1.2l2 .8 1.7-3-1.7-1.3c.07-.4.1-.8.1-1.2z" opacity=".85"/></svg>',
+  about:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 12H9V9h2zm0-6H9V6h2z"/></svg>',
+  discord:'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 5.5C8.5 4.5 11.5 4.5 14 5.5c1.2 2 1.8 4 1.8 6.3-1 1-2.4 1.8-3.8 2.1l-.5-1c.6-.2 1.2-.5 1.7-.9-.4.1-.9.2-1.3.3-1.9.4-4.1.4-6 0-.4-.1-.9-.2-1.3-.3.5.4 1.1.7 1.7.9l-.5 1c-1.4-.3-2.8-1.1-3.8-2.1 0-2.3.6-4.3 1.7-6.3zM7.7 10.4c-.5 0-.9.5-.9 1.1s.4 1.1.9 1.1 1-.5 1-1.1-.4-1.1-1-1.1zm4.6 0c-.5 0-1 .5-1 1.1s.5 1.1 1 1.1 1-.5 1-1.1-.4-1.1-1-1.1z"/></svg>'
+};
+
+const PROJECT_STEPS = [
+  {id:"overview", label:"Overview", icon:"overview"},
+  {id:"minecraft", label:"Minecraft", icon:"minecraft"},
+  {id:"server", label:"Server", icon:"server"},
+  {id:"mods", label:"Mods", icon:"mods"},
+  {id:"resourcepacks", label:"Resource Packs", icon:"packs"},
+  {id:"shaders", label:"Shaders", icon:"shaders"},
+  {id:"branding", label:"Branding", icon:"branding"},
+  {id:"preview", label:"Preview", icon:"preview"},
+  {id:"validate", label:"Validate", icon:"validate"},
+  {id:"build", label:"Build", icon:"build"},
+  {id:"export", label:"Export", icon:"export"}
+];
+
+/* ===================== APP SHELL RENDER ===================== */
+function render(){
+  applySettingsToDom();
+  const app = document.getElementById("app");
+  const r = state.route;
+  const inProject = r.view === "project" ? getProject(r.id) : null;
+
+  app.innerHTML = `
+    <aside class="sidebar">
+      ${renderSidebar(r, inProject)}
+    </aside>
+    <div class="main-col">
+      ${renderTopbar(r, inProject)}
+      <div class="main-scroll ${r.view==='project' && ['preview','mods','build'].includes(r.step) ? 'wide':''}" id="mainScroll">
+        ${renderView(r, inProject)}
+      </div>
+    </div>
+  `;
+  bindGlobalEvents();
+  bindViewEvents(r, inProject);
+  document.body.classList.toggle("nav-open", state.navOpen);
+}
+
+function sideLink(hash, icon, label, active, disabled){
+  return `<div class="side-link ${active?'active':''} ${disabled?'disabled':''}" data-go="${escapeAttr(hash)}">
+    ${NAV_ICONS[icon]||''}<span>${escapeHtml(label)}</span>
+  </div>`;
+}
+
+function renderSidebar(r, project){
+  const mainGroup = `
+    <div class="side-group">
+      <div class="side-group-label">Main</div>
+      ${sideLink('#/dashboard','dashboard','Dashboard', r.view==='dashboard')}
+      ${sideLink('#/dashboard','projects','My Projects', false)}
+      ${sideLink('#/create','create','Create Launcher', r.view==='create')}
+    </div>`;
+
+  let projectGroup = "";
+  if(project){
+    projectGroup = `
+    <div class="side-group">
+      <div class="side-group-label">${escapeHtml(project.name)}</div>
+      ${PROJECT_STEPS.map(s => sideLink('#/project/'+project.id+'/'+s.id, s.icon, s.label, r.step===s.id)).join("")}
+    </div>`;
+  } else {
+    projectGroup = `
+    <div class="side-group">
+      <div class="side-group-label">Project</div>
+      <div class="side-link disabled">${NAV_ICONS.overview}<span>Open a project to edit it</span></div>
+    </div>`;
+  }
+
+  const accountGroup = `
+    <div class="side-group">
+      <div class="side-group-label">Account / UI</div>
+      ${sideLink('#/settings','settings','Settings', r.view==='settings')}
+      ${sideLink('#/about','about','About VynixForge', r.view==='about')}
+    </div>`;
+
+  return `
+    <div class="brand" data-go="#/dashboard" style="cursor:pointer">
+      <div class="brand-mark"><svg viewBox="0 0 20 20" fill="#1a0e05"><path d="M10 2l1.6 3.3L15 6l-2.4 2.6L13 12l-3-1.7L7 12l.4-3.4L5 6l3.4-.7z"/></svg></div>
+      <div class="brand-text"><div class="name">VynixForge</div><div class="studio">VYNIX STUDIO</div></div>
+    </div>
+    <div class="side-scroll">
+      ${mainGroup}
+      ${projectGroup}
+      ${accountGroup}
+    </div>
+    <div class="side-footer">VynixForge v1.0 · Local build<br>Build service: ${BUILD_API_BASE ? '<span style="color:var(--success)">connected</span>' : '<span style="color:var(--text-3)">not connected</span>'}</div>
+  `;
+}
+
+const STEP_TITLES = {
+  dashboard:"Dashboard", create:"Create Launcher", settings:"Settings", about:"About VynixForge"
+};
+function renderTopbar(r, project){
+  let crumb;
+  if(r.view === "project" && project){
+    const stepLabel = (PROJECT_STEPS.find(s=>s.id===r.step)||{}).label || "Overview";
+    crumb = `<span>Projects</span><span class="sep">/</span><span>${escapeHtml(project.name)}</span><span class="sep">/</span><b class="crumb-current">${escapeHtml(stepLabel)}</b>`;
+  } else {
+    crumb = `<b class="crumb-current">${escapeHtml(STEP_TITLES[r.view] || "VynixForge")}</b>`;
+  }
+  return `
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="btn btn-icon btn-ghost menu-btn" id="menuBtn" aria-label="Menu">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <div class="crumb">${crumb}</div>
+    </div>
+    <div class="topbar-right">
+      ${project ? `<span class="badge ${statusBadgeClass(project.status)}">${escapeHtml(project.status)}</span>` : ""}
+      <button class="btn btn-sm btn-ghost" id="themeToggleBtn" title="Toggle theme">
+        ${state.settings.theme==='dark' ? '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 108 8c0-.3 0-.6-.1-.9A6 6 0 0110 3.9c0-.6.03-1.3.1-1.9z"/></svg>' : '<svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="10" r="4"/></svg>'}
+      </button>
+      <button class="btn btn-primary btn-sm" data-go="#/create">+ New Launcher</button>
+    </div>
+  </div>`;
+}
+function statusBadgeClass(status){
+  return { draft:"", configured:"badge-info", validated:"badge-warning", built:"badge-success" }[status] || "";
+}
+
+function bindGlobalEvents(){
+  document.querySelectorAll("[data-go]").forEach(el => {
+    el.addEventListener("click", () => go(el.getAttribute("data-go")));
+  });
+  const menuBtn = document.getElementById("menuBtn");
+  if(menuBtn) menuBtn.addEventListener("click", () => { state.navOpen = true; document.body.classList.add("nav-open"); });
+  const scrim = document.getElementById("navScrim");
+  if(scrim) scrim.onclick = () => { state.navOpen=false; document.body.classList.remove("nav-open"); };
+  const themeBtn = document.getElementById("themeToggleBtn");
+  if(themeBtn) themeBtn.addEventListener("click", () => {
+    state.settings.theme = state.settings.theme === "dark" ? "light" : "dark";
+    saveSettings(state.settings);
+    render();
+  });
+}
+function applySettingsToDom(){
+  document.documentElement.setAttribute("data-theme", state.settings.theme);
+  document.body.classList.toggle("compact", !!state.settings.compact);
+  document.body.classList.toggle("anim", state.settings.animations !== false);
+}
+
+/* ===================== VIEW DISPATCH ===================== */
+function renderView(r, project){
+  switch(r.view){
+    case "dashboard": return renderDashboard();
+    case "create": return renderCreate();
+    case "project":
+      if(!project) return renderNotFound();
+      return renderProjectStep(project, r.step);
+    case "settings": return renderSettings();
+    case "about": return renderAbout();
+    default: return renderNotFound();
+  }
+}
+function bindViewEvents(r, project){
+  switch(r.view){
+    case "dashboard": return bindDashboardEvents();
+    case "create": return bindCreateEvents();
+    case "project": if(project) return bindProjectStepEvents(project, r.step); return;
+    case "settings": return bindSettingsEvents();
+    case "about": return;
+  }
+}
+function renderNotFound(){
+  return `<div class="empty-state"><h3>Nothing here</h3><p>That page doesn't exist.</p>
+    <button class="btn btn-primary" data-go="#/dashboard">Back to dashboard</button></div>`;
+}
+
+/* ===================== DASHBOARD ===================== */
+function renderDashboard(){
+  const projects = state.projects;
+  const built = projects.filter(p => p.build.status === "completed").length;
+  const recent = [...projects].sort((a,b) => b.updatedAt - a.updatedAt).slice(0, 12);
+
+  const cards = recent.map(p => renderProjectCard(p)).join("");
+
+  return `
+  <div class="welcome-card">
+    <div>
+      <h1>Welcome back to VynixForge</h1>
+      <p>Design, configure, and preview your own Minecraft launcher — then hand it off to a build service for a real .exe.</p>
+      <div class="stat-row">
+        <div class="stat"><div class="num">${projects.length}</div><div class="lbl">Projects</div></div>
+        <div class="stat"><div class="num">${projects.filter(p=>p.status==='validated'||p.build.status==='completed').length}</div><div class="lbl">Validated</div></div>
+        <div class="stat"><div class="num">${built}</div><div class="lbl">Built</div></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" data-go="#/create">
+      ${NAV_ICONS.create}<span>Create Launcher</span>
+    </button>
+  </div>
+
+  <div class="section-head">
+    <div><h1>My Launcher Projects</h1><div class="sub">Everything is saved locally in your browser.</div></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline btn-sm" id="importProjBtn">Import JSON</button>
+      <button class="btn btn-outline btn-sm" id="exportAllBtn">Export all</button>
+    </div>
+  </div>
+
+  ${recent.length === 0 ? `
+    <div class="empty-state">
+      <svg class="glyph" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1.6 3.3L15 6l-2.4 2.6L13 12l-3-1.7L7 12l.4-3.4L5 6l3.4-.7z"/></svg>
+      <h3>No launcher projects yet</h3>
+      <p>Create your first launcher project to start configuring Minecraft, mods, branding and more.</p>
+      <button class="btn btn-primary" data-go="#/create">Create Launcher</button>
+    </div>
+  ` : `<div class="grid grid-auto" id="projGrid">${cards}</div>`}
+  `;
+}
+
+function renderProjectCard(p){
+  const bg = p.branding.background ? `style="background-image:url('${p.branding.background}')"` : "";
+  const modsCount = p.mods.length;
+  return `
+  <div class="proj-card" data-open="${p.id}">
+    <div class="proj-thumb" ${bg}>
+      ${!p.branding.background ? `<svg class="ph-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1.6 3.3L15 6l-2.4 2.6L13 12l-3-1.7L7 12l.4-3.4L5 6l3.4-.7z"/></svg>` : ""}
+    </div>
+    <div class="proj-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div class="proj-name">${escapeHtml(p.name)}</div>
+        <span class="badge ${statusBadgeClass(p.status)}">${escapeHtml(p.status)}</span>
+      </div>
+      <div class="proj-meta">MC ${escapeHtml(p.minecraft.version)} · ${escapeHtml(p.minecraft.loader)} · Updated ${timeAgo(p.updatedAt)}</div>
+      <div class="proj-tags">
+        <span class="tag">${modsCount} mod${modsCount===1?'':'s'}</span>
+        ${p.server.enabled ? `<span class="tag">Server</span>` : ""}
+        <span class="tag">${p.build.status}</span>
+      </div>
+      <div class="proj-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-sm btn-outline" data-open="${p.id}">Open</button>
+        <button class="btn btn-sm btn-ghost" data-dup="${p.id}">Duplicate</button>
+        <button class="btn btn-sm btn-ghost" data-rename="${p.id}">Rename</button>
+        <button class="btn btn-sm btn-danger" data-del="${p.id}">Delete</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindDashboardEvents(){
+  document.querySelectorAll("[data-open]").forEach(el => {
+    el.addEventListener("click", (e) => { e.stopPropagation(); go("#/project/"+el.getAttribute("data-open")+"/overview"); });
+  });
+  document.querySelectorAll("[data-dup]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const p = duplicateProject(el.getAttribute("data-dup"));
+      toast("Duplicated \"" + p.name + "\"", "success");
+      render();
+    });
+  });
+  document.querySelectorAll("[data-rename]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = el.getAttribute("data-rename");
+      const p = getProject(id);
+      openModal({
+        title:"Rename project",
+        bodyHtml:`<div class="field"><label>Project name</label><input type="text" id="renameInput" value="${escapeAttr(p.name)}" maxlength="60"></div>`,
+        actions:[
+          {id:"cancel", label:"Cancel", cls:"btn-ghost", onClick:closeModal},
+          {id:"save", label:"Save", cls:"btn-primary", onClick:() => {
+            const v = document.getElementById("renameInput").value.trim();
+            if(!v){ toast("Name can't be empty", "error"); return; }
+            renameProject(id, v);
+            closeModal(); toast("Renamed", "success"); render();
+          }}
+        ]
+      });
+    });
+  });
+  document.querySelectorAll("[data-del]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = el.getAttribute("data-del");
+      const p = getProject(id);
+      openModal({
+        title:"Delete project",
+        bodyHtml:`<p>Delete <b>${escapeHtml(p.name)}</b>? This can't be undone. Consider exporting the JSON config first.</p>`,
+        actions:[
+          {id:"cancel", label:"Cancel", cls:"btn-ghost", onClick:closeModal},
+          {id:"del", label:"Delete", cls:"btn-danger", onClick:() => {
+            deleteProject(id); closeModal(); toast("Project deleted", "info"); render();
+          }}
+        ]
+      });
+    });
+  });
+  const importBtn = document.getElementById("importProjBtn");
+  if(importBtn) importBtn.addEventListener("click", openImportModal);
+  const exportBtn = document.getElementById("exportAllBtn");
+  if(exportBtn) exportBtn.addEventListener("click", () => {
+    downloadJson(state.projects, "vynixforge-projects.json");
+    toast("Exported all projects", "success");
+  });
+}
+
+function downloadJson(obj, filename){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+function openImportModal(){
+  openModal({
+    title:"Import project JSON",
+    bodyHtml:`
+      <p>Paste a VynixForge project export below. Imported data is validated before use — it is never executed.</p>
+      <textarea id="importArea" style="min-height:160px;font-family:var(--font-mono);font-size:12px;" placeholder='{"name":"My Launcher", ...}'></textarea>
+      <div class="field" style="margin-top:10px"><label>Or choose a file</label><input type="file" id="importFile" accept="application/json" style="display:block"></div>
+    `,
+    actions:[
+      {id:"cancel", label:"Cancel", cls:"btn-ghost", onClick:closeModal},
+      {id:"import", label:"Import", cls:"btn-primary", onClick:doImport}
+    ]
+  });
+  const fileInput = document.getElementById("importFile");
+  fileInput.style.display = "block";
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { document.getElementById("importArea").value = reader.result; };
+    reader.readAsText(f);
+  });
+}
+function doImport(){
+  const raw = document.getElementById("importArea").value.trim();
+  if(!raw){ toast("Paste or choose JSON first", "error"); return; }
+  let data;
+  try{ data = JSON.parse(raw); }catch(e){ toast("Invalid JSON", "error"); return; }
+  const items = Array.isArray(data) ? data : [data];
+  let count = 0;
+  items.forEach(item => {
+    if(!item || typeof item !== "object") return;
+    const safe = sanitizeImportedProject(item);
+    if(safe){ state.projects.unshift(safe); count++; }
+  });
+  if(count === 0){ toast("No valid projects found in that JSON", "error"); return; }
+  persistProjects();
+  closeModal();
+  toast("Imported " + count + " project" + (count===1?"":"s"), "success");
+  render();
+}
+function sanitizeImportedProject(item){
+  // Never trust imported data blindly — rebuild against the schema.
+  const base = newProjectData({
+    name: typeof item.name === "string" ? item.name.slice(0,60) : "Imported Launcher",
+    description: typeof item.description === "string" ? item.description.slice(0,300) : "",
+    mcVersion: typeof item.minecraft?.version === "string" ? item.minecraft.version : "1.21.1",
+    loader: LOADERS.includes(item.minecraft?.loader) ? item.minecraft.loader : "Fabric"
+  });
+  base.id = uid("proj");
+  try{
+    if(item.minecraft){
+      base.minecraft.javaVersion = JAVA_VERSIONS.includes(item.minecraft.javaVersion) ? item.minecraft.javaVersion : base.minecraft.javaVersion;
+      base.minecraft.ramMin = clamp(item.minecraft.ramMin, 1, 32) || base.minecraft.ramMin;
+      base.minecraft.ramMax = clamp(item.minecraft.ramMax, 1, 32) || base.minecraft.ramMax;
+      base.minecraft.jvmArgs = typeof item.minecraft.jvmArgs === "string" ? item.minecraft.jvmArgs.slice(0,400) : base.minecraft.jvmArgs;
+      base.minecraft.gameDirectory = typeof item.minecraft.gameDirectory === "string" ? item.minecraft.gameDirectory.slice(0,200) : base.minecraft.gameDirectory;
+      base.minecraft.resolution = RESOLUTIONS.includes(item.minecraft.resolution) ? item.minecraft.resolution : base.minecraft.resolution;
+      base.minecraft.fullscreen = !!item.minecraft.fullscreen;
+      base.minecraft.launchArgs = typeof item.minecraft.launchArgs === "string" ? item.minecraft.launchArgs.slice(0,300) : "";
+    }
+    if(item.server){
+      base.server.enabled = !!item.server.enabled;
+      base.server.name = typeof item.server.name === "string" ? item.server.name.slice(0,60) : "";
+      base.server.ip = typeof item.server.ip === "string" ? item.server.ip.slice(0,120) : "";
+      base.server.port = clamp(item.server.port, 1, 65535) || 25565;
+      base.server.defaultServer = !!item.server.defaultServer;
+      base.server.autoConnect = !!item.server.autoConnect;
+      base.server.icon = typeof item.server.icon === "string" && item.server.icon.startsWith("data:image") ? item.server.icon : null;
+    }
+    ["mods","resourcePacks","shaders"].forEach(key => {
+      if(Array.isArray(item[key])){
+        base[key] = item[key].slice(0,200).map(m => ({
+          id: uid(key),
+          name: typeof m.name === "string" ? m.name.slice(0,80) : "Untitled",
+          url: typeof m.url === "string" && isValidUrl(m.url) ? m.url : "",
+          version: typeof m.version === "string" ? m.version.slice(0,30) : "",
+          loader: LOADERS.includes(m.loader) ? m.loader : "Any",
+          enabled: m.enabled !== false
+        }));
+      }
+    });
+    if(item.branding){
+      const b = item.branding;
+      base.branding.launcherName = typeof b.launcherName === "string" ? b.launcherName.slice(0,60) : base.branding.launcherName;
+      base.branding.accentColor = isValidHex(b.accentColor) ? b.accentColor : base.branding.accentColor;
+      base.branding.secondaryColor = isValidHex(b.secondaryColor) ? b.secondaryColor : base.branding.secondaryColor;
+      base.branding.textColor = isValidHex(b.textColor) ? b.textColor : base.branding.textColor;
+      base.branding.font = FONTS.includes(b.font) ? b.font : base.branding.font;
+      base.branding.loadingScreenText = typeof b.loadingScreenText === "string" ? b.loadingScreenText.slice(0,80) : base.branding.loadingScreenText;
+      base.branding.buttonStyle = BUTTON_STYLES.includes(b.buttonStyle) ? b.buttonStyle : base.branding.buttonStyle;
+      base.branding.theme = THEMES.some(t=>t.id===b.theme) ? b.theme : base.branding.theme;
+      ["logo","icon","background"].forEach(k => {
+        base.branding[k] = typeof b[k] === "string" && b[k].startsWith("data:image") ? b[k] : null;
+      });
+    }
+    if(item.discord){
+      base.discord.enabled = !!item.discord.enabled;
+      base.discord.url = typeof item.discord.url === "string" && isValidUrl(item.discord.url) ? item.discord.url : "";
+    }
+  }catch(e){ console.error("Import sanitize error", e); }
+  return base;
+}
+
+/* ===================== CREATE LAUNCHER ===================== */
+function renderCreate(){
+  return `
+  <div class="section-head">
+    <div><h1>Create Launcher</h1><div class="sub">Set the basics — you'll configure everything else in the builder.</div></div>
+  </div>
+  <div class="card" style="max-width:640px;">
+    <div class="field">
+      <label>Launcher name *</label>
+      <input type="text" id="cName" placeholder="e.g. Skyblock Odyssey" maxlength="60">
+      <div class="err">Give your launcher a name.</div>
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <textarea id="cDesc" placeholder="What's this launcher for?" maxlength="300"></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Minecraft version *</label>
+        <select id="cVersion">${MC_VERSIONS.map(v=>`<option value="${v}">${v}</option>`).join("")}</select>
+      </div>
+      <div class="field">
+        <label>Loader *</label>
+        <select id="cLoader">${LOADERS.filter(l=>l!=="Vanilla").map(l=>`<option value="${l}">${l}</option>`).join("")}<option value="Vanilla">Vanilla (no loader)</option></select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Supported loaders</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${LOADERS.map(l => `<span class="tag">${l}</span>`).join("")}
+      </div>
+      <div class="hint">Fabric, Forge and NeoForge are supported — pick the one your modpack targets.</div>
+    </div>
+    <div class="modal-actions" style="margin-top:6px;justify-content:flex-start;">
+      <button class="btn btn-primary" id="createSubmit">${NAV_ICONS.create}<span>Create &amp; open builder</span></button>
+      <button class="btn btn-ghost" data-go="#/dashboard">Cancel</button>
+    </div>
+  </div>`;
+}
+function bindCreateEvents(){
+  document.getElementById("createSubmit").addEventListener("click", () => {
+    const nameEl = document.getElementById("cName");
+    const name = nameEl.value.trim();
+    const nameField = nameEl.closest(".field");
+    if(!name){ nameField.classList.add("invalid"); nameEl.focus(); return; }
+    nameField.classList.remove("invalid");
+    const p = createProject({
+      name,
+      description: document.getElementById("cDesc").value.trim(),
+      mcVersion: document.getElementById("cVersion").value,
+      loader: document.getElementById("cLoader").value
+    });
+    toast("Launcher project created", "success");
+    go("#/project/" + p.id + "/overview");
+  });
+}
+
+/* ===================== PROJECT STEP WRAPPER ===================== */
+function stepIndex(step){ return PROJECT_STEPS.findIndex(s => s.id === step); }
+function renderStepper(project, step){
+  const curIdx = stepIndex(step);
+  return `<div class="stepper-wrap"><div class="stepper">
+    ${PROJECT_STEPS.map((s,i) => `
+      <div class="step-pill ${i===curIdx?'active':''} ${i<curIdx?'done':''}" data-go="#/project/${project.id}/${s.id}">
+        <span class="n">${i<curIdx ? '✓' : i+1}</span>${escapeHtml(s.label)}
+      </div>`).join("")}
+  </div></div>`;
+}
+function builderNav(project, step){
+  const idx = stepIndex(step);
+  const prev = PROJECT_STEPS[idx-1];
+  const next = PROJECT_STEPS[idx+1];
+  return `<div class="builder-nav">
+    <div>${prev ? `<button class="btn btn-outline" data-go="#/project/${project.id}/${prev.id}">← ${escapeHtml(prev.label)}</button>` : `<button class="btn btn-outline" data-go="#/dashboard">← Dashboard</button>`}</div>
+    <div>${next ? `<button class="btn btn-primary" data-go="#/project/${project.id}/${next.id}">Continue to ${escapeHtml(next.label)} →</button>` : ""}</div>
+  </div>`;
+}
+function renderProjectStep(project, step){
+  const stepFns = {
+    overview: renderStepOverview, minecraft: renderStepMinecraft, server: renderStepServer,
+    mods: renderStepMods, resourcepacks: renderStepPacks, shaders: renderStepShaders,
+    branding: renderStepBranding, preview: renderStepPreview, validate: renderStepValidate,
+    build: renderStepBuild, export: renderStepExport
+  };
+  const fn = stepFns[step] || renderStepOverview;
+  return `${renderStepper(project, step)}${fn(project)}`;
+}
+function bindProjectStepEvents(project, step){
+  const fns = {
+    overview: bindStepOverview, minecraft: bindStepMinecraft, server: bindStepServer,
+    mods: bindStepMods, resourcepacks: bindStepPacks, shaders: bindStepShaders,
+    branding: bindStepBranding, preview: bindStepPreview, validate: bindStepValidate,
+    build: bindStepBuild, export: bindStepExport
+  };
+  (fns[step] || bindStepOverview)(project);
+  document.querySelectorAll("[data-go]").forEach(el => {
+    el.addEventListener("click", () => go(el.getAttribute("data-go")));
+  });
+}
+function saveField(project, path, value){
+  updateProject(project.id, p => {
+    const parts = path.split(".");
+    let obj = p;
+    for(let i=0;i<parts.length-1;i++) obj = obj[parts[i]];
+    obj[parts[parts.length-1]] = value;
+  });
+}
+function bindAutosaveInputs(container, project, map){
+  // map: { elementId: {path, transform} }
+  Object.keys(map).forEach(elId => {
+    const el = document.getElementById(elId);
+    if(!el) return;
+    const {path, transform, evt} = map[elId];
+    el.addEventListener(evt || (el.tagName==="SELECT"||el.type==="checkbox"||el.type==="color"?"change":"input"), () => {
+      let val = el.type === "checkbox" ? el.checked : el.value;
+      if(transform) val = transform(val);
+      saveField(project, path, val);
+      if(state.settings.autosave){ flashAutosaved(); }
+    });
+  });
+}
+let autosaveFlashTimer = null;
+function flashAutosaved(){
+  const el = document.getElementById("autosaveIndicator");
+  if(!el) return;
+  el.textContent = "Saved just now";
+  el.style.color = "var(--success)";
+  clearTimeout(autosaveFlashTimer);
+  autosaveFlashTimer = setTimeout(() => { el.textContent = "Autosave on"; el.style.color = ""; }, 1800);
+}
+
+/* ---------- OVERVIEW ---------- */
+function renderStepOverview(project){
+  return `
+  <div class="section-head">
+    <div><h1>${escapeHtml(project.name)}</h1><div class="sub">${escapeHtml(project.description || "No description yet.")}</div></div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span id="autosaveIndicator" style="font-size:11.5px;color:var(--text-2);">Autosave on</span>
+      <button class="btn btn-outline btn-sm" id="ovRenameBtn">Rename</button>
+    </div>
+  </div>
+  <div class="grid grid-3">
+    <div class="card card-tight">
+      <div class="card-desc">Minecraft</div>
+      <div class="card-title" style="margin-top:4px;">${escapeHtml(project.minecraft.version)} · ${escapeHtml(project.minecraft.loader)}</div>
+    </div>
+    <div class="card card-tight">
+      <div class="card-desc">Server</div>
+      <div class="card-title" style="margin-top:4px;">${project.server.enabled ? escapeHtml(project.server.name || project.server.ip) : "Not configured"}</div>
+    </div>
+    <div class="card card-tight">
+      <div class="card-desc">Content</div>
+      <div class="card-title" style="margin-top:4px;">${project.mods.length} mods · ${project.resourcePacks.length} packs · ${project.shaders.length} shaders</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div><div class="card-title">Project details</div><div class="card-desc">Basic info shown on your dashboard card.</div></div></div>
+    <div class="field">
+      <label>Launcher project name</label>
+      <input type="text" id="ovName" value="${escapeAttr(project.name)}" maxlength="60">
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <textarea id="ovDesc" maxlength="300">${escapeHtml(project.description)}</textarea>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>Launcher version (used for the build)</label>
+      <input type="text" id="ovLauncherVersion" value="${escapeAttr(project.build.launcherVersion)}" maxlength="20" style="max-width:160px;">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div><div class="card-title">Discord / support link</div><div class="card-desc">Optional button shown in your launcher.</div></div></div>
+    <div class="switch-row">
+      <div><div class="label">Show Discord / support button</div><div class="desc">Adds a button to the live preview and future builds.</div></div>
+      <label class="switch"><input type="checkbox" id="discordEnabled" ${project.discord.enabled?'checked':''}><span class="track"></span></label>
+    </div>
+    <div class="field" style="margin-top:12px;">
+      <label>Discord / support URL</label>
+      <input type="text" id="discordUrl" value="${escapeAttr(project.discord.url)}" placeholder="https://discord.gg/yourserver">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div><div class="card-title">Project workflow</div><div class="card-desc">Where you are in the pipeline.</div></div></div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      ${PROJECT_STEPS.map((s,i) => `<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--border-soft);font-size:13px;">
+        <span>${i+1}. ${escapeHtml(s.label)}</span>
+        <button class="btn btn-sm btn-ghost" data-go="#/project/${project.id}/${s.id}">Open</button>
+      </div>`).join("")}
+    </div>
+  </div>
+  ${builderNav(project, "overview")}
+  `;
+}
+function bindStepOverview(project){
+  bindAutosaveInputs(null, project, {
+    ovName: {path:"name"},
+    ovDesc: {path:"description"},
+    ovLauncherVersion: {path:"build.launcherVersion"},
+    discordEnabled: {path:"discord.enabled"},
+    discordUrl: {path:"discord.url"}
+  });
+  document.getElementById("ovRenameBtn").addEventListener("click", () => {
+    document.getElementById("ovName").focus();
+  });
+}
+
+/* ---------- MINECRAFT ---------- */
+function renderStepMinecraft(project){
+  const mc = project.minecraft;
+  return `
+  <div class="section-head"><div><h1>Configure Minecraft</h1><div class="sub">Version, loader, Java, and launch settings.</div></div>
+  <span id="autosaveIndicator" style="font-size:11.5px;color:var(--text-2);">Autosave on</span></div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Version &amp; loader</div></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Minecraft version *</label>
+        <select id="mcVersion">${MC_VERSIONS.map(v=>`<option value="${v}" ${v===mc.version?'selected':''}>${v}</option>`).join("")}</select>
+      </div>
+      <div class="field">
+        <label>Mod loader *</label>
+        <select id="mcLoader">${LOADERS.map(l=>`<option value="${l}" ${l===mc.loader?'selected':''}>${l}</option>`).join("")}</select>
+        <div class="hint">Fabric, Forge and NeoForge are supported.</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Java version *</label>
+      <select id="mcJava">${JAVA_VERSIONS.map(j=>`<option value="${j}" ${j===mc.javaVersion?'selected':''}>${j}</option>`).join("")}</select>
+      <div class="hint">1.20.5+ requires Java 21. Pick the matching runtime for your MC version.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Memory allocation</div></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Minimum RAM (GB)</label>
+        <input type="number" id="mcRamMin" min="1" max="32" step="1" value="${mc.ramMin}">
+      </div>
+      <div class="field">
+        <label>Maximum RAM (GB)</label>
+        <input type="number" id="mcRamMax" min="1" max="32" step="1" value="${mc.ramMax}">
+        <div class="err" id="ramErr">Max RAM must be greater than or equal to min RAM.</div>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>JVM arguments</label>
+      <textarea id="mcJvm" style="font-family:var(--font-mono);font-size:12.5px;">${escapeHtml(mc.jvmArgs)}</textarea>
+      <div class="hint">Advanced flags passed to the JVM on launch (e.g. garbage collector tuning).</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Display &amp; directory</div></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Default resolution</label>
+        <select id="mcRes">${RESOLUTIONS.map(r=>`<option value="${r}" ${r===mc.resolution?'selected':''}>${r}</option>`).join("")}</select>
+      </div>
+      <div class="field">
+        <label>Fullscreen by default</label>
+        <div style="padding-top:8px;"><label class="switch"><input type="checkbox" id="mcFullscreen" ${mc.fullscreen?'checked':''}><span class="track"></span></label></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Game directory</label>
+      <input type="text" id="mcGameDir" value="${escapeAttr(mc.gameDirectory)}" style="font-family:var(--font-mono);font-size:12.5px;">
+      <div class="hint">Where instance files (saves, mods, config) will live once built.</div>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>Extra launch arguments</label>
+      <input type="text" id="mcLaunchArgs" value="${escapeAttr(mc.launchArgs)}" placeholder="--server play.example.com --port 25565" style="font-family:var(--font-mono);font-size:12.5px;">
+    </div>
+  </div>
+  ${builderNav(project, "minecraft")}
+  `;
+}
+function bindStepMinecraft(project){
+  bindAutosaveInputs(null, project, {
+    mcVersion: {path:"minecraft.version"},
+    mcLoader: {path:"minecraft.loader"},
+    mcJava: {path:"minecraft.javaVersion"},
+    mcJvm: {path:"minecraft.jvmArgs"},
+    mcRes: {path:"minecraft.resolution"},
+    mcFullscreen: {path:"minecraft.fullscreen"},
+    mcGameDir: {path:"minecraft.gameDirectory"},
+    mcLaunchArgs: {path:"minecraft.launchArgs"}
+  });
+  const ramMin = document.getElementById("mcRamMin");
+  const ramMax = document.getElementById("mcRamMax");
+  function validateRam(){
+    const min = clamp(ramMin.value, 1, 32);
+    const max = clamp(ramMax.value, 1, 32);
+    const invalid = max < min;
+    document.getElementById("ramErr").style.display = invalid ? "block" : "none";
+    ramMax.closest(".field").classList.toggle("invalid", invalid);
+    if(!invalid){
+      saveField(project, "minecraft.ramMin", min);
+      saveField(project, "minecraft.ramMax", max);
+      if(state.settings.autosave) flashAutosaved();
+    }
+  }
+  ramMin.addEventListener("input", validateRam);
+  ramMax.addEventListener("input", validateRam);
+}
+
+/* ---------- SERVER ---------- */
+function renderStepServer(project){
+  const s = project.server;
+  return `
+  <div class="section-head"><div><h1>Configure Server</h1><div class="sub">Bundle a default server your launcher can connect to.</div></div>
+  <span id="autosaveIndicator" style="font-size:11.5px;color:var(--text-2);">Autosave on</span></div>
+
+  <div class="card">
+    <div class="switch-row">
+      <div><div class="label">Bundle a server with this launcher</div><div class="desc">Shows server info in the preview and future launcher.</div></div>
+      <label class="switch"><input type="checkbox" id="svEnabled" ${s.enabled?'checked':''}><span class="track"></span></label>
+    </div>
+  </div>
+
+  <div class="card" id="serverFields" style="${s.enabled?'':'opacity:.5;'}">
+    <div class="card-header"><div class="card-title">Server details</div></div>
+    <div class="field">
+      <label>Server name *</label>
+      <input type="text" id="svName" value="${escapeAttr(s.name)}" placeholder="Vynix SMP" maxlength="60" ${s.enabled?'':'disabled'}>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Server IP / hostname *</label>
+        <input type="text" id="svIp" value="${escapeAttr(s.ip)}" placeholder="play.example.com" ${s.enabled?'':'disabled'}>
+        <div class="err">Enter a valid hostname or IP.</div>
+      </div>
+      <div class="field">
+        <label>Port *</label>
+        <input type="number" id="svPort" value="${s.port}" min="1" max="65535" ${s.enabled?'':'disabled'}>
+        <div class="err">Port must be between 1–65535.</div>
+      </div>
+    </div>
+    <div class="switch-row">
+      <div><div class="label">Set as default server</div><div class="desc">Pre-fills this server in the multiplayer list.</div></div>
+      <label class="switch"><input type="checkbox" id="svDefault" ${s.defaultServer?'checked':''} ${s.enabled?'':'disabled'}><span class="track"></span></label>
+    </div>
+    <div class="switch-row">
+      <div><div class="label">Auto-connect on launch</div><div class="desc">Players join this server automatically when they hit Play.</div></div>
+      <label class="switch"><input type="checkbox" id="svAuto" ${s.autoConnect?'checked':''} ${s.enabled?'':'disabled'}><span class="track"></span></label>
+    </div>
+    <div class="field" style="margin-top:14px;margin-bottom:0;">
+      <label>Server icon</label>
+      <div class="upload-box">
+        <div class="upload-preview" id="svIconPreview" style="${s.icon?`background-image:url('${s.icon}')`:''}">${!s.icon?'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 4h12v12H4z"/></svg>':''}</div>
+        <div class="upload-meta">
+          <div class="fname">${s.icon ? "Custom icon set" : "64×64 PNG recommended"}</div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-sm btn-outline" id="svIconUploadBtn" ${s.enabled?'':'disabled'}>Upload</button>
+            ${s.icon ? `<button class="btn btn-sm btn-ghost" id="svIconRemoveBtn">Remove</button>`:''}
+          </div>
+        </div>
+        <input type="file" id="svIconFile" accept="image/*">
+      </div>
+    </div>
+  </div>
+  ${builderNav(project, "server")}
+  `;
+}
+function bindStepServer(project){
+  const enabled = document.getElementById("svEnabled");
+  enabled.addEventListener("change", () => {
+    saveField(project, "server.enabled", enabled.checked);
+    render(); go("#/project/"+project.id+"/server");
+  });
+  bindAutosaveInputs(null, project, {
+    svName: {path:"server.name"},
+    svDefault: {path:"server.defaultServer"},
+    svAuto: {path:"server.autoConnect"}
+  });
+  const ip = document.getElementById("svIp");
+  const port = document.getElementById("svPort");
+  ip.addEventListener("input", () => {
+    const valid = isValidIp(ip.value);
+    ip.closest(".field").classList.toggle("invalid", ip.value.length>0 && !valid);
+    saveField(project, "server.ip", ip.value.trim());
+    if(state.settings.autosave) flashAutosaved();
+  });
+  port.addEventListener("input", () => {
+    const valid = isValidPort(port.value);
+    port.closest(".field").classList.toggle("invalid", port.value.length>0 && !valid);
+    if(valid){ saveField(project, "server.port", Number(port.value)); if(state.settings.autosave) flashAutosaved(); }
+  });
+  const iconBtn = document.getElementById("svIconUploadBtn");
+  const iconFile = document.getElementById("svIconFile");
+  if(iconBtn) iconBtn.addEventListener("click", () => iconFile.click());
+  if(iconFile) iconFile.addEventListener("change", async () => {
+    try{
+      const dataUrl = await readFileAsDataUrl(iconFile.files[0], 2*1024*1024);
+      saveField(project, "server.icon", dataUrl);
+      toast("Server icon uploaded", "success");
+      render(); go("#/project/"+project.id+"/server");
+    }catch(e){ toast(e.message, "error"); }
+  });
+  const rmBtn = document.getElementById("svIconRemoveBtn");
+  if(rmBtn) rmBtn.addEventListener("click", () => {
+    saveField(project, "server.icon", null); render(); go("#/project/"+project.id+"/server");
+  });
+}
+
+/* ---------- SHARED CONTENT LIST (mods / resource packs / shaders) ---------- */
+function renderContentList(project, key, {title, sub, noun, showLoader}){
+  const items = project[key];
+  const rows = items.map((it, idx) => `
+    <div class="list-row ${it.enabled?'':'disabled-row'}" data-id="${it.id}">
+      <div class="drag" title="Reorder">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <button class="btn btn-icon btn-ghost" style="width:22px;height:18px;padding:0;" data-move="up" data-id="${it.id}" ${idx===0?'disabled':''}>&#9650;</button>
+          <button class="btn btn-icon btn-ghost" style="width:22px;height:18px;padding:0;" data-move="down" data-id="${it.id}" ${idx===items.length-1?'disabled':''}>&#9660;</button>
+        </div>
+      </div>
+      <div class="info">
+        <div class="t1">${escapeHtml(it.name)} ${it.version?`<span class="tag">${escapeHtml(it.version)}</span>`:''} ${showLoader && it.loader ? `<span class="tag">${escapeHtml(it.loader)}</span>`:''}</div>
+        <div class="t2">${it.url ? escapeHtml(it.url) : 'No URL set'}</div>
+      </div>
+      <div class="actions">
+        <label class="switch" title="Enable/disable"><input type="checkbox" data-toggle="${it.id}" ${it.enabled?'checked':''}><span class="track"></span></label>
+        <button class="btn btn-sm btn-ghost" data-edit="${it.id}">Edit</button>
+        <button class="btn btn-sm btn-danger" data-remove="${it.id}">Remove</button>
+      </div>
+    </div>`).join("");
+
+  return `
+  <div class="section-head"><div><h1>${escapeHtml(title)}</h1><div class="sub">${escapeHtml(sub)}</div></div>
+  <button class="btn btn-primary btn-sm" id="addItemBtn">+ Add ${escapeHtml(noun)}</button></div>
+
+  ${items.length === 0 ? `
+    <div class="empty-state">
+      <svg class="glyph" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1.6 3.3L15 6l-2.4 2.6L13 12l-3-1.7L7 12l.4-3.4L5 6l3.4-.7z"/></svg>
+      <h3>No ${escapeHtml(noun.toLowerCase())}s yet</h3>
+      <p>Add ${escapeHtml(noun.toLowerCase())}s with their name, download URL and version. VynixForge stores this configuration with your project — it does not download files itself.</p>
+      <button class="btn btn-primary" id="addItemBtnEmpty">+ Add ${escapeHtml(noun)}</button>
+    </div>
+  ` : `<div>${rows}</div>
+    <p class="hint" style="margin-top:6px;">VynixForge saves ${escapeHtml(noun.toLowerCase())} configuration only — actual downloading and installing happens when a connected build service packages your launcher.</p>`}
+
+  ${builderNav(project, key === "mods" ? "mods" : (key === "resourcePacks" ? "resourcepacks" : "shaders"))}
+  `;
+}
+function bindContentList(project, key, {noun, showLoader}){
+  function openItemModal(existing){
+    const it = existing || {id:null, name:"", url:"", version:"", loader:"Any", enabled:true};
+    openModal({
+      title: existing ? "Edit " + noun : "Add " + noun,
+      bodyHtml: `
+        <div class="field"><label>Name *</label><input type="text" id="itName" value="${escapeAttr(it.name)}" maxlength="80"></div>
+        <div class="field"><label>URL</label><input type="text" id="itUrl" value="${escapeAttr(it.url)}" placeholder="https://modrinth.com/... or https://curseforge.com/...">
+          <div class="err" id="itUrlErr">Enter a valid https:// URL.</div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Version</label><input type="text" id="itVersion" value="${escapeAttr(it.version)}" placeholder="1.4.2" maxlength="30"></div>
+          ${showLoader ? `<div class="field"><label>Loader compatibility</label><select id="itLoader">${["Any",...LOADERS].map(l=>`<option value="${l}" ${l===it.loader?'selected':''}>${l}</option>`).join("")}</select></div>` : ""}
+        </div>
+        <div class="switch-row"><div class="label">Enabled</div><label class="switch"><input type="checkbox" id="itEnabled" ${it.enabled?'checked':''}><span class="track"></span></label></div>
+      `,
+      actions:[
+        {id:"cancel", label:"Cancel", cls:"btn-ghost", onClick:closeModal},
+        {id:"save", label: existing ? "Save changes" : "Add " + noun, cls:"btn-primary", onClick:() => {
+          const name = document.getElementById("itName").value.trim();
+          const url = document.getElementById("itUrl").value.trim();
+          if(!name){ toast("Name is required", "error"); return; }
+          if(url && !isValidUrl(url)){ document.getElementById("itUrlErr").style.display="block"; document.getElementById("itUrl").closest(".field").classList.add("invalid"); return; }
+          const payload = {
+            id: it.id || uid(key),
+            name, url,
+            version: document.getElementById("itVersion").value.trim(),
+            loader: showLoader ? document.getElementById("itLoader").value : "Any",
+            enabled: document.getElementById("itEnabled").checked
+          };
+          updateProject(project.id, p => {
+            if(existing){
+              const i = p[key].findIndex(x => x.id === it.id);
+              if(i>-1) p[key][i] = payload;
+            } else {
+              p[key].push(payload);
+            }
+          });
+          closeModal();
+          toast((existing?"Updated ":"Added ") + name, "success");
+          render(); go(location.hash);
+        }}
+      ]
+    });
+  }
+  const addBtn = document.getElementById("addItemBtn");
+  const addBtn2 = document.getElementById("addItemBtnEmpty");
+  if(addBtn) addBtn.addEventListener("click", () => openItemModal(null));
+  if(addBtn2) addBtn2.addEventListener("click", () => openItemModal(null));
+  document.querySelectorAll("[data-edit]").forEach(el => {
+    el.addEventListener("click", () => {
+      const it = project[key].find(x => x.id === el.getAttribute("data-edit"));
+      if(it) openItemModal(it);
+    });
+  });
+  document.querySelectorAll("[data-remove]").forEach(el => {
+    el.addEventListener("click", () => {
+      const id = el.getAttribute("data-remove");
+      updateProject(project.id, p => { p[key] = p[key].filter(x => x.id !== id); });
+      toast("Removed", "info"); render(); go(location.hash);
+    });
+  });
+  document.querySelectorAll("[data-toggle]").forEach(el => {
+    el.addEventListener("change", () => {
+      const id = el.getAttribute("data-toggle");
+      updateProject(project.id, p => { const it = p[key].find(x=>x.id===id); if(it) it.enabled = el.checked; });
+      render(); go(location.hash);
+    });
+  });
+  document.querySelectorAll("[data-move]").forEach(el => {
+    el.addEventListener("click", () => {
+      const id = el.getAttribute("data-id");
+      const dir = el.getAttribute("data-move");
+      updateProject(project.id, p => {
+        const arr = p[key];
+        const i = arr.findIndex(x => x.id === id);
+        const j = dir === "up" ? i-1 : i+1;
+        if(j<0 || j>=arr.length) return;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      });
+      render(); go(location.hash);
+    });
+  });
+}
+
+/* ---------- MODS ---------- */
+function renderStepMods(project){ return renderContentList(project, "mods", {title:"Mod Manager", sub:"Configure the mods bundled with this launcher.", noun:"Mod", showLoader:true}); }
+function bindStepMods(project){ bindContentList(project, "mods", {noun:"Mod", showLoader:true}); }
+
+/* ---------- RESOURCE PACKS ---------- */
+function renderStepPacks(project){ return renderContentList(project, "resourcePacks", {title:"Resource Packs", sub:"Bundle resource packs with this launcher.", noun:"Resource Pack", showLoader:false}); }
+function bindStepPacks(project){ bindContentList(project, "resourcePacks", {noun:"Resource Pack", showLoader:false}); }
+
+/* ---------- SHADERS ---------- */
+function renderStepShaders(project){ return renderContentList(project, "shaders", {title:"Shaders", sub:"Bundle a shader pack with this launcher.", noun:"Shader", showLoader:false}); }
+function bindStepShaders(project){ bindContentList(project, "shaders", {noun:"Shader", showLoader:false}); }
+
+/* ---------- BRANDING ---------- */
+function renderStepBranding(project){
+  const b = project.branding;
+  const uploadBox = (id, label, dataUrl, wide) => `
+    <div class="upload-box">
+      <div class="upload-preview ${wide?'wide':''}" id="${id}Preview" style="${dataUrl?`background-image:url('${dataUrl}')`:''}">
+        ${!dataUrl?'<svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 4h12v12H4z"/></svg>':''}
+      </div>
+      ${!wide ? `<div class="upload-meta">
+        <div class="fname">${dataUrl ? "Image set" : label + " not set"}</div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-sm btn-outline" id="${id}Btn">Upload</button>
+          ${dataUrl?`<button class="btn btn-sm btn-ghost" id="${id}RemoveBtn">Remove</button>`:''}
+        </div>
+      </div>` : ""}
+      <input type="file" id="${id}File" accept="image/*">
+    </div>
+    ${wide ? `<div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-sm btn-outline" id="${id}Btn">Upload ${label}</button>
+        ${dataUrl?`<button class="btn btn-sm btn-ghost" id="${id}RemoveBtn">Remove</button>`:''}
+      </div>` : ""}
+  `;
+  return `
+  <div class="section-head"><div><h1>Customize Branding</h1><div class="sub">Make it look like your launcher, not a generic one.</div></div>
+  <span id="autosaveIndicator" style="font-size:11.5px;color:var(--text-2);">Autosave on</span></div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Identity</div></div>
+    <div class="field">
+      <label>Launcher name *</label>
+      <input type="text" id="brName" value="${escapeAttr(b.launcherName)}" maxlength="40">
+    </div>
+    <div class="field">
+      <label>Loading screen message</label>
+      <input type="text" id="brLoading" value="${escapeAttr(b.loadingScreenText)}" maxlength="80">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Logo, icon &amp; background</div></div>
+    <div class="grid grid-3">
+      <div><label style="display:block;font-size:12.5px;font-weight:600;color:var(--text-1);margin-bottom:6px;">Logo</label>${uploadBox("brLogo","logo",b.logo,false)}</div>
+      <div><label style="display:block;font-size:12.5px;font-weight:600;color:var(--text-1);margin-bottom:6px;">App icon</label>${uploadBox("brIcon","icon",b.icon,false)}</div>
+      <div><label style="display:block;font-size:12.5px;font-weight:600;color:var(--text-1);margin-bottom:6px;">Background</label>${uploadBox("brBg","background",b.background,true)}</div>
+    </div>
+    <div class="hint" style="margin-top:10px;">Images are stored locally as part of your project (max 4MB each).</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Colors &amp; typography</div></div>
+    <div class="grid grid-3">
+      <div class="field">
+        <label>Accent color</label>
+        <div class="color-field"><input type="color" id="brAccentPick" value="${b.accentColor}"><input type="text" id="brAccent" value="${escapeAttr(b.accentColor)}"></div>
+      </div>
+      <div class="field">
+        <label>Secondary color</label>
+        <div class="color-field"><input type="color" id="brSecondaryPick" value="${b.secondaryColor}"><input type="text" id="brSecondary" value="${escapeAttr(b.secondaryColor)}"></div>
+      </div>
+      <div class="field">
+        <label>Text color</label>
+        <div class="color-field"><input type="color" id="brTextPick" value="${b.textColor}"><input type="text" id="brText" value="${escapeAttr(b.textColor)}"></div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Font</label>
+        <select id="brFont">${FONTS.map(f=>`<option value="${f}" ${f===b.font?'selected':''}>${f}</option>`).join("")}</select>
+      </div>
+      <div class="field">
+        <label>Button style</label>
+        <select id="brButtonStyle">${BUTTON_STYLES.map(s=>`<option value="${s}" ${s===b.buttonStyle?'selected':''}>${s}</option>`).join("")}</select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Theme presets</div></div>
+    <div class="grid grid-3" id="themeGrid">
+      ${THEMES.map(t => `
+        <div class="theme-opt ${b.theme===t.id?'active':''}" data-theme-id="${t.id}">
+          <div class="swatchset"><span style="background:${t.accent}"></span><span style="background:${t.secondary}"></span></div>
+          <div style="font-size:13px;font-weight:600;">${t.label}</div>
+        </div>`).join("")}
+    </div>
+    <div class="hint" style="margin-top:8px;">Applying a preset sets accent + secondary colors — you can still fine-tune them above.</div>
+  </div>
+
+  ${builderNav(project, "branding")}
+  `;
+}
+function bindStepBranding(project){
+  bindAutosaveInputs(null, project, {
+    brName: {path:"branding.launcherName"},
+    brLoading: {path:"branding.loadingScreenText"},
+    brFont: {path:"branding.font"},
+    brButtonStyle: {path:"branding.buttonStyle"}
+  });
+  function bindColor(pickId, textId, path){
+    const pick = document.getElementById(pickId), text = document.getElementById(textId);
+    pick.addEventListener("input", () => { text.value = pick.value; saveField(project, path, pick.value); if(state.settings.autosave) flashAutosaved(); });
+    text.addEventListener("change", () => {
+      const v = text.value.trim();
+      const field = text.closest(".field");
+      if(!isValidHex(v)){ field.classList.add("invalid"); return; }
+      field.classList.remove("invalid");
+      pick.value = v; saveField(project, path, v); if(state.settings.autosave) flashAutosaved();
+    });
+  }
+  bindColor("brAccentPick","brAccent","branding.accentColor");
+  bindColor("brSecondaryPick","brSecondary","branding.secondaryColor");
+  bindColor("brTextPick","brText","branding.textColor");
+
+  function bindUpload(id, path, maxMb){
+    const btn = document.getElementById(id+"Btn");
+    const file = document.getElementById(id+"File");
+    const rm = document.getElementById(id+"RemoveBtn");
+    if(btn) btn.addEventListener("click", () => file.click());
+    if(file) file.addEventListener("change", async () => {
+      try{
+        const dataUrl = await readFileAsDataUrl(file.files[0], maxMb*1024*1024);
+        saveField(project, path, dataUrl);
+        toast("Image uploaded", "success");
+        render(); go("#/project/"+project.id+"/branding");
+      }catch(e){ toast(e.message, "error"); }
+    });
+    if(rm) rm.addEventListener("click", () => { saveField(project, path, null); render(); go("#/project/"+project.id+"/branding"); });
+  }
+  bindUpload("brLogo","branding.logo",4);
+  bindUpload("brIcon","branding.icon",4);
+  bindUpload("brBg","branding.background",4);
+
+  document.querySelectorAll("[data-theme-id]").forEach(el => {
+    el.addEventListener("click", () => {
+      const t = THEMES.find(x => x.id === el.getAttribute("data-theme-id"));
+      updateProject(project.id, p => { p.branding.theme = t.id; p.branding.accentColor = t.accent; p.branding.secondaryColor = t.secondary; });
+      render(); go("#/project/"+project.id+"/branding");
+    });
+  });
+}
+
+/* ---------- PREVIEW ---------- */
+let previewLoadingToggle = false;
+function renderLauncherPreview(project){
+  const b = project.branding;
+  const bgStyle = b.background ? `background-image:url('${b.background}')` : `background:linear-gradient(160deg, #26201a, #0d0b09)`;
+  const playBg = `background:linear-gradient(155deg, ${b.accentColor}, ${shade(b.accentColor,-18)})`;
+  const radius = b.buttonStyle === "Pill" ? "999px" : (b.buttonStyle === "Sharp" ? "3px" : "9px");
+  const server = project.server;
+  const modsEnabled = project.mods.filter(m=>m.enabled).length;
+
+  return `
+  <div class="launcher-window" style="${bgStyle};font-family:'${b.font}',sans-serif;">
+    ${previewLoadingToggle ? `
+      <div class="lw-loading">
+        <div class="spinner" style="border-top-color:${b.accentColor}"></div>
+        <span>${escapeHtml(b.loadingScreenText || "Loading…")}</span>
+      </div>` : ""}
+    <div class="lw-titlebar">
+      <div class="lw-brand">
+        ${b.icon ? `<img src="${b.icon}">` : `<div class="fallback-icon" style="background:${b.accentColor};border-radius:5px;"></div>`}
+        <div class="lname">${escapeHtml(b.launcherName || project.name)}</div>
+      </div>
+      <div class="lw-dots"><span></span><span></span><span></span></div>
+    </div>
+    <div class="lw-body">
+      <div class="lw-side">
+        <div class="ic active">${NAV_ICONS.overview}</div>
+        <div class="ic">${NAV_ICONS.mods}</div>
+        <div class="ic">${NAV_ICONS.packs}</div>
+        ${project.discord.enabled ? `<div class="ic" style="color:${b.secondaryColor}">${NAV_ICONS.discord}</div>` : ""}
+        <div class="ic" style="margin-top:auto;">${NAV_ICONS.settings}</div>
+      </div>
+      <div class="lw-main">
+        <div class="lw-news">
+          <span class="tag">News</span>
+          <h3>${escapeHtml(project.name)}</h3>
+          <p>${escapeHtml(project.description || "Welcome to your custom launcher.")} ${modsEnabled} mod${modsEnabled===1?'':'s'} bundled.</p>
+        </div>
+        <div class="lw-bottom">
+          <div class="lw-server ${server.enabled?'':'off'}">
+            <div class="srow"><span class="dot" style="background:${server.enabled?'var(--success)':'var(--text-3)'}"></span><span class="sname">${server.enabled ? escapeHtml(server.name || "Default Server") : "No server configured"}</span></div>
+            ${server.enabled ? `<div class="sip">${escapeHtml(server.ip)}:${server.port}</div>` : `<div class="sip">Configure a server to show it here</div>`}
+            ${server.enabled && server.autoConnect ? `<div style="margin-top:4px;"><span class="tag" style="background:rgba(255,255,255,.12);color:#fff;border:none;">Auto-connect</span></div>` : ""}
+          </div>
+          <div class="lw-play-col">
+            <div class="lw-account">
+              <div class="lw-avatar"></div>
+              <span class="uname">Player</span>
+            </div>
+            <div class="lw-version">Minecraft ${escapeHtml(project.minecraft.version)} · ${escapeHtml(project.minecraft.loader)}</div>
+            <button class="lw-play" style="${playBg};border-radius:${radius};" id="previewPlayBtn">Play</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function shade(hex, pct){
+  try{
+    let c = hex.replace("#","");
+    if(c.length===3) c = c.split("").map(x=>x+x).join("");
+    const num = parseInt(c,16);
+    let r = (num>>16)+Math.round(2.55*pct);
+    let g = ((num>>8)&0xff)+Math.round(2.55*pct);
+    let bl = (num&0xff)+Math.round(2.55*pct);
+    r=Math.min(255,Math.max(0,r)); g=Math.min(255,Math.max(0,g)); bl=Math.min(255,Math.max(0,bl));
+    return "#"+((1<<24)+(r<<16)+(g<<8)+bl).toString(16).slice(1);
+  }catch(e){ return hex; }
+}
+function renderStepPreview(project){
+  return `
+  <div class="section-head"><div><h1>Live Launcher Preview</h1><div class="sub">This reflects your real configuration — not a screenshot.</div></div></div>
+  <div class="preview-stage">${renderLauncherPreview(project)}</div>
+  <div class="preview-controls">
+    <button class="btn btn-outline btn-sm" id="toggleLoadingBtn">${previewLoadingToggle ? "Hide loading state" : "Show loading state"}</button>
+    <button class="btn btn-outline btn-sm" data-go="#/project/${project.id}/branding">Edit branding</button>
+    <button class="btn btn-outline btn-sm" data-go="#/project/${project.id}/server">Edit server</button>
+  </div>
+  ${builderNav(project, "preview")}
+  `;
+}
+function bindStepPreview(project){
+  document.getElementById("toggleLoadingBtn").addEventListener("click", () => {
+    previewLoadingToggle = !previewLoadingToggle;
+    render(); go("#/project/"+project.id+"/preview");
+  });
+}
+
+/* ===================== VALIDATION ENGINE ===================== */
+function validateProject(project){
+  const checks = [];
+  const push = (ok, label, detail) => checks.push({ok, label, detail});
+
+  push(!!project.name.trim(), "Launcher name", project.name.trim() ? "\"" + project.name + "\" set." : "Give this project a name.");
+  push(isValidMcVersion(project.minecraft.version), "Minecraft version", isValidMcVersion(project.minecraft.version) ? project.minecraft.version + " is a valid version string." : "Version must look like 1.20.1.");
+  push(LOADERS.includes(project.minecraft.loader), "Mod loader", "Loader: " + project.minecraft.loader);
+  push(project.minecraft.ramMax >= project.minecraft.ramMin, "Memory allocation", project.minecraft.ramMax >= project.minecraft.ramMin ? project.minecraft.ramMin+"–"+project.minecraft.ramMax+" GB" : "Max RAM must be ≥ min RAM.");
+  push(!!project.minecraft.gameDirectory.trim(), "Game directory", project.minecraft.gameDirectory.trim() ? project.minecraft.gameDirectory : "Set a game directory.");
+
+  if(project.server.enabled){
+    push(!!project.server.name.trim(), "Server name", project.server.name.trim() ? project.server.name : "Server is enabled but has no name.");
+    push(isValidIp(project.server.ip), "Server address", isValidIp(project.server.ip) ? project.server.ip : "Enter a valid server IP or hostname.");
+    push(isValidPort(project.server.port), "Server port", isValidPort(project.server.port) ? String(project.server.port) : "Port must be 1–65535.");
+  } else {
+    push(true, "Server", "No bundled server (optional).");
+  }
+
+  const enabledMods = project.mods.filter(m=>m.enabled);
+  const badMods = enabledMods.filter(m => !m.name.trim() || (m.url && !isValidUrl(m.url)));
+  push(badMods.length===0, "Mods", badMods.length===0 ? enabledMods.length+" enabled mod(s) look valid." : badMods.length+" mod(s) have a missing name or invalid URL.");
+
+  const badPacks = project.resourcePacks.filter(m=>m.enabled).filter(m => !m.name.trim() || (m.url && !isValidUrl(m.url)));
+  push(badPacks.length===0, "Resource packs", badPacks.length===0 ? "Configuration looks valid." : badPacks.length+" pack(s) have a missing name or invalid URL.");
+
+  const badShaders = project.shaders.filter(m=>m.enabled).filter(m => !m.name.trim() || (m.url && !isValidUrl(m.url)));
+  push(badShaders.length===0, "Shaders", badShaders.length===0 ? "Configuration looks valid." : badShaders.length+" shader(s) have a missing name or invalid URL.");
+
+  push(!!project.branding.launcherName.trim(), "Branding — launcher name", project.branding.launcherName.trim() || "Set a launcher display name.");
+  push(isValidHex(project.branding.accentColor), "Branding — accent color", isValidHex(project.branding.accentColor) ? project.branding.accentColor : "Accent color must be a valid hex code.");
+  push(isValidHex(project.branding.textColor), "Branding — text color", isValidHex(project.branding.textColor) ? project.branding.textColor : "Text color must be a valid hex code.");
+
+  if(project.discord.enabled){
+    push(isValidUrl(project.discord.url), "Discord / support link", isValidUrl(project.discord.url) ? project.discord.url : "Enabled but URL is missing or invalid.");
+  }
+
+  const passed = checks.every(c => c.ok);
+  return { passed, checks };
+}
+
+/* ---------- VALIDATE STEP ---------- */
+function renderStepValidate(project){
+  const {passed, checks} = validateProject(project);
+  return `
+  <div class="section-head"><div><h1>Validate Configuration</h1><div class="sub">Runs entirely in your browser before anything is sent to a build service.</div></div></div>
+
+  <div class="build-status-card" style="margin-bottom:20px;">
+    <div class="build-status-icon" style="background:${passed?'var(--success-bg)':'var(--danger-bg)'};color:${passed?'var(--success)':'var(--danger)'}">
+      ${passed ? '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M8.3 13.3 5 10l1.4-1.4L8.3 10.5l5.3-5.3L15 6.6z"/></svg>' : '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 12H9v-2h2zm0-4H9V5h2z"/></svg>'}
+    </div>
+    <div>
+      <div class="card-title">${passed ? "Ready to build" : (checks.filter(c=>!c.ok).length) + " issue(s) to fix"}</div>
+      <div class="card-desc">${passed ? "All required fields are valid. You can continue to the build step." : "Resolve the issues below, then re-run validation."}</div>
+    </div>
+  </div>
+
+  ${checks.map(c => `
+    <div class="check-row ${c.ok?'ok':'fail'}">
+      <div class="icon">${c.ok ? '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M8.3 13.3 5 10l1.4-1.4L8.3 10.5l5.3-5.3L15 6.6z"/></svg>' : '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 6l8 8M14 6l-8 8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>'}</div>
+      <div class="body"><b>${escapeHtml(c.label)}</b><p>${escapeHtml(c.detail)}</p></div>
+    </div>`).join("")}
+
+  <div class="builder-nav">
+    <div><button class="btn btn-outline" data-go="#/project/${project.id}/preview">← Preview</button></div>
+    <div>
+      <button class="btn ${passed?'btn-primary':'btn-outline'}" id="reValidateBtn" style="margin-right:8px;">Re-run validation</button>
+      <button class="btn btn-primary" data-go="#/project/${project.id}/build" ${passed?'':'disabled'}>Continue to Build →</button>
+    </div>
+  </div>
+  `;
+}
+function bindStepValidate(project){
+  const passed = validateProject(project).passed;
+  updateProject(project.id, p => { if(p.status !== "built") p.status = passed ? "validated" : "configured"; });
+  document.getElementById("reValidateBtn").addEventListener("click", () => { render(); go("#/project/"+project.id+"/validate"); toast("Validation re-run", "info"); });
+}
+
+/* ===================== BUILD CONFIGURATION OBJECT ===================== */
+function buildLauncherConfig(project){
+  return {
+    schema: "vynixforge.launcher-config.v1",
+    project: {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt
+    },
+    minecraft: {
+      version: project.minecraft.version,
+      loader: project.minecraft.loader,
+      java: {
+        version: project.minecraft.javaVersion
+      },
+      memory: { minGB: project.minecraft.ramMin, maxGB: project.minecraft.ramMax },
+      jvmArgs: project.minecraft.jvmArgs,
+      launchArgs: project.minecraft.launchArgs,
+      gameDirectory: project.minecraft.gameDirectory,
+      window: { resolution: project.minecraft.resolution, fullscreen: project.minecraft.fullscreen }
+    },
+    server: project.server.enabled ? {
+      name: project.server.name, ip: project.server.ip, port: project.server.port,
+      defaultServer: project.server.defaultServer, autoConnect: project.server.autoConnect,
+      hasIcon: !!project.server.icon
+    } : null,
+    mods: project.mods.map(m => ({name:m.name, url:m.url, version:m.version, loader:m.loader, enabled:m.enabled})),
+    resourcePacks: project.resourcePacks.map(m => ({name:m.name, url:m.url, version:m.version, enabled:m.enabled})),
+    shaders: project.shaders.map(m => ({name:m.name, url:m.url, version:m.version, enabled:m.enabled})),
+    branding: {
+      launcherName: project.branding.launcherName,
+      accentColor: project.branding.accentColor,
+      secondaryColor: project.branding.secondaryColor,
+      textColor: project.branding.textColor,
+      font: project.branding.font,
+      buttonStyle: project.branding.buttonStyle,
+      theme: project.branding.theme,
+      loadingScreenText: project.branding.loadingScreenText,
+      hasLogo: !!project.branding.logo,
+      hasIcon: !!project.branding.icon,
+      hasBackground: !!project.branding.background
+    },
+    discord: project.discord.enabled ? { url: project.discord.url } : null,
+    build: {
+      launcherVersion: project.build.launcherVersion,
+      target: "windows-x64",
+      outputFormat: "exe"
+    }
+  };
+}
+function fullExportConfig(project){
+  // Full export (includes embedded images) — for import/backup, distinct from the
+  // build-service payload above which only signals presence of images.
+  return JSON.parse(JSON.stringify(project));
+}
+
+/* ===================== BUILD SERVICE ABSTRACTION =====================
+   This is the ONLY place a real build backend would be called from.
+   BUILD_API_BASE is null in this deployment, so isConnected() is false
+   and every method below refuses to run rather than faking a result.
+   Wire up a real backend by setting BUILD_API_BASE near the top of
+   this file, matching the contract in the comments below. */
+const BuildService = {
+  isConnected(){ return typeof BUILD_API_BASE === "string" && BUILD_API_BASE.length > 0; },
+  async submitBuild(config){
+    // Real contract: POST {BUILD_API_BASE}/build  body: config  -> { buildId }
+    if(!this.isConnected()) throw new Error("BUILD_SERVICE_NOT_CONNECTED");
+    const res = await fetch(BUILD_API_BASE + "/build", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(config)
+    });
+    if(!res.ok) throw new Error("Build request failed (" + res.status + ")");
+    return res.json();
+  },
+  async getStatus(buildId){
+    // Real contract: GET {BUILD_API_BASE}/build/{id} -> { status, progress, logs[] }
+    if(!this.isConnected()) throw new Error("BUILD_SERVICE_NOT_CONNECTED");
+    const res = await fetch(BUILD_API_BASE + "/build/" + encodeURIComponent(buildId));
+    if(!res.ok) throw new Error("Couldn't fetch build status (" + res.status + ")");
+    return res.json();
+  },
+  downloadUrl(buildId){
+    // Real contract: GET {BUILD_API_BASE}/build/{id}/download -> the .exe
+    if(!this.isConnected()) return null;
+    return BUILD_API_BASE + "/build/" + encodeURIComponent(buildId) + "/download";
+  }
+};
+
+/* ---------- BUILD STEP ---------- */
+function buildStatusMeta(status){
+  return {
+    ready:{label:"Ready", icon:"build", color:"var(--text-2)"},
+    validating:{label:"Validating", icon:"validate", color:"var(--info)"},
+    queued:{label:"Queued", icon:"build", color:"var(--info)"},
+    building:{label:"Building", icon:"build", color:"var(--warning)"},
+    packaging:{label:"Packaging", icon:"build", color:"var(--warning)"},
+    completed:{label:"Completed", icon:"validate", color:"var(--success)"},
+    failed:{label:"Failed", icon:"build", color:"var(--danger)"}
+  }[status] || {label:status, icon:"build", color:"var(--text-2)"};
+}
+function renderStepBuild(project){
+  const {passed} = validateProject(project);
+  const connected = BuildService.isConnected();
+  const b = project.build;
+  const meta = buildStatusMeta(b.status);
+
+  return `
+  <div class="section-head"><div><h1>Build Launcher</h1><div class="sub">Sends your configuration to a build service, which compiles a real Windows .exe.</div></div></div>
+
+  <div class="card" style="border-color:${connected?'var(--success)':'rgba(232,91,78,.35)'};">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Build service ${connected ? "connected" : "not connected"}</div>
+        <div class="card-desc">
+          ${connected ? "A build backend is configured at " + escapeHtml(BUILD_API_BASE) + "."
+          : "No build backend is configured for this deployment. VynixForge will never fake a build or invent a download — it stays honest about what a static frontend can and can't do."}
+        </div>
+      </div>
+      <span class="badge ${connected?'badge-success':'badge-danger'}">${connected?'Connected':'Disconnected'}</span>
+    </div>
+    ${!connected ? `
+      <p style="margin-top:6px;">What you can do right now, without a backend:</p>
+      <ul style="margin:0 0 4px 18px;padding:0;color:var(--text-1);font-size:13.4px;line-height:1.9;">
+        <li>Validate your configuration (already run — see below)</li>
+        <li>Export the full build-ready configuration as JSON</li>
+        <li>Copy the JSON to hand to your own build pipeline</li>
+      </ul>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" id="viewConfigBtn">View configuration</button>
+        <button class="btn btn-outline btn-sm" id="copyConfigBtn">Copy JSON</button>
+        <button class="btn btn-outline btn-sm" id="downloadConfigBtn">Download JSON</button>
+      </div>
+    ` : ""}
+  </div>
+
+  <div class="build-status-card">
+    <div class="build-status-icon" style="background:color-mix(in srgb, ${meta.color} 18%, transparent);color:${meta.color}">${NAV_ICONS[meta.icon]}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="card-title">${meta.label}</div>
+        <span class="badge">${escapeHtml(project.build.launcherVersion)}</span>
+      </div>
+      <div class="card-desc">Build ID: ${b.buildId ? escapeHtml(b.buildId) : "—"} · Project: ${escapeHtml(project.name)} · Created: ${b.createdTime ? formatDate(b.createdTime) : "—"}</div>
+    </div>
+    <button class="btn btn-primary" id="buildLauncherBtn" ${!connected || !passed ? '' : ''} title="${connected ? '' : 'Build service not connected'}">
+      ${connected ? "Build Launcher (.exe)" : "Build Launcher (.exe) — unavailable"}
+    </button>
+  </div>
+
+  ${!passed ? `<div class="check-row fail" style="margin-top:14px;"><div class="icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 6l8 8M14 6l-8 8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div><div class="body"><b>Validation hasn't passed yet</b><p>Fix the issues on the Validate step before a real build could be requested.</p></div></div>` : ""}
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header"><div class="card-title">Build states this UI supports</div><div class="card-desc">Once a real backend is connected, builds move through these states automatically.</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${BUILD_STATES.map(s => `<span class="badge ${s===b.status?'badge-info':''}">${s}</span>`).join("")}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Build log</div></div>
+    <div class="build-log">
+      ${b.logs.length ? b.logs.map(l => `<div class="ln"><span class="t">${escapeHtml(formatDate(l.time))}</span>${escapeHtml(l.message)}</div>`).join("")
+        : `<div class="ln"><span class="t">—</span>No build has been requested yet. Logs will stream here once a build service is connected and a build starts.</div>`}
+    </div>
+  </div>
+
+  <div class="builder-nav">
+    <div><button class="btn btn-outline" data-go="#/project/${project.id}/validate">← Validate</button></div>
+    <div><button class="btn btn-primary" data-go="#/project/${project.id}/export">Continue to Export →</button></div>
+  </div>
+  `;
+}
+function bindStepBuild(project){
+  const connected = BuildService.isConnected();
+  const {passed} = validateProject(project);
+  document.getElementById("buildLauncherBtn").addEventListener("click", async () => {
+    if(!connected){
+      toast("Build service isn't connected — nothing was built. Export the JSON instead.", "error");
+      return;
+    }
+    if(!passed){ toast("Fix validation issues first", "error"); return; }
+    try{
+      updateProject(project.id, p => { p.build.status = "queued"; p.build.createdTime = Date.now(); p.build.logs.push({time:Date.now(), message:"Build submitted to build service."}); });
+      const config = buildLauncherConfig(project);
+      const res = await BuildService.submitBuild(config);
+      updateProject(project.id, p => { p.build.buildId = res.buildId || null; });
+      toast("Build submitted", "success");
+      render(); go("#/project/"+project.id+"/build");
+    }catch(e){
+      updateProject(project.id, p => { p.build.status = "failed"; p.build.logs.push({time:Date.now(), message:"Error: " + e.message}); });
+      toast("Build failed: " + e.message, "error");
+      render(); go("#/project/"+project.id+"/build");
+    }
+  });
+  const viewBtn = document.getElementById("viewConfigBtn");
+  if(viewBtn) viewBtn.addEventListener("click", () => openConfigModal(project));
+  const copyBtn = document.getElementById("copyConfigBtn");
+  if(copyBtn) copyBtn.addEventListener("click", () => copyConfig(project));
+  const dlBtn = document.getElementById("downloadConfigBtn");
+  if(dlBtn) dlBtn.addEventListener("click", () => {
+    downloadJson(buildLauncherConfig(project), slugify(project.name) + ".vynixforge.json");
+    toast("Configuration downloaded", "success");
+  });
+}
+function openConfigModal(project){
+  const json = JSON.stringify(buildLauncherConfig(project), null, 2);
+  openModal({
+    title:"Build configuration — " + project.name,
+    wide:true,
+    bodyHtml: `<p>This is what would be sent to <code>POST /build</code> on a connected build service.</p><pre>${escapeHtml(json)}</pre>`,
+    actions:[
+      {id:"close", label:"Close", cls:"btn-ghost", onClick:closeModal},
+      {id:"copy", label:"Copy JSON", cls:"btn-primary", onClick:() => copyConfig(project)}
+    ]
+  });
+}
+async function copyConfig(project){
+  const json = JSON.stringify(buildLauncherConfig(project), null, 2);
+  try{
+    await navigator.clipboard.writeText(json);
+    toast("Configuration copied to clipboard", "success");
+  }catch(e){
+    toast("Couldn't access clipboard — use Download JSON instead.", "error");
+  }
+}
+
+/* ---------- EXPORT STEP ---------- */
+function renderStepExport(project){
+  const buildJson = JSON.stringify(buildLauncherConfig(project), null, 2);
+  return `
+  <div class="section-head"><div><h1>Export</h1><div class="sub">Structured JSON any build backend can consume — plus a full project backup.</div></div></div>
+
+  <div class="card">
+    <div class="card-header"><div><div class="card-title">Build-service configuration</div><div class="card-desc">Matches the payload a real build service's <code>POST /build</code> would receive.</div></div></div>
+    <pre>${escapeHtml(buildJson.length > 2400 ? buildJson.slice(0,2400) + "\n  …" : buildJson)}</pre>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" id="viewFullConfigBtn">View full JSON</button>
+      <button class="btn btn-outline btn-sm" id="copyBuildJsonBtn">Copy JSON</button>
+      <button class="btn btn-primary btn-sm" id="downloadBuildJsonBtn">Download JSON</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div><div class="card-title">Full project backup</div><div class="card-desc">Includes uploaded images — use this to re-import the project later.</div></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" id="downloadFullBtn">Download project JSON</button>
+      <button class="btn btn-outline btn-sm" id="copyFullBtn">Copy project JSON</button>
+    </div>
+  </div>
+
+  <div class="builder-nav">
+    <div><button class="btn btn-outline" data-go="#/project/${project.id}/build">← Build</button></div>
+    <div><button class="btn btn-outline" data-go="#/dashboard">Back to dashboard</button></div>
+  </div>
+  `;
+}
+function bindStepExport(project){
+  document.getElementById("viewFullConfigBtn").addEventListener("click", () => openConfigModal(project));
+  document.getElementById("copyBuildJsonBtn").addEventListener("click", () => copyConfig(project));
+  document.getElementById("downloadBuildJsonBtn").addEventListener("click", () => {
+    downloadJson(buildLauncherConfig(project), slugify(project.name) + ".vynixforge.json");
+    toast("Build configuration downloaded", "success");
+  });
+  document.getElementById("downloadFullBtn").addEventListener("click", () => {
+    downloadJson(fullExportConfig(project), slugify(project.name) + ".project.json");
+    toast("Project backup downloaded", "success");
+  });
+  document.getElementById("copyFullBtn").addEventListener("click", async () => {
+    try{ await navigator.clipboard.writeText(JSON.stringify(fullExportConfig(project), null, 2)); toast("Project JSON copied", "success"); }
+    catch(e){ toast("Couldn't access clipboard", "error"); }
+  });
+}
+
+/* ===================== SETTINGS ===================== */
+function renderSettings(){
+  const s = state.settings;
+  return `
+  <div class="section-head"><div><h1>Settings</h1><div class="sub">Appearance, autosave, and local data controls.</div></div></div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Appearance</div></div>
+    <div class="switch-row">
+      <div><div class="label">Dark mode</div><div class="desc">Switch between dark and light interface.</div></div>
+      <label class="switch"><input type="checkbox" id="setDark" ${s.theme==='dark'?'checked':''}><span class="track"></span></label>
+    </div>
+    <div class="switch-row">
+      <div><div class="label">Compact mode</div><div class="desc">Reduce padding and font size for denser screens.</div></div>
+      <label class="switch"><input type="checkbox" id="setCompact" ${s.compact?'checked':''}><span class="track"></span></label>
+    </div>
+    <div class="switch-row">
+      <div><div class="label">Animations</div><div class="desc">Enable interface motion and transitions.</div></div>
+      <label class="switch"><input type="checkbox" id="setAnim" ${s.animations?'checked':''}><span class="track"></span></label>
+    </div>
+    <div class="field" style="margin-top:14px;margin-bottom:0;">
+      <label>Accent color (VynixForge UI, not project branding)</label>
+      <div class="swatches">
+        ${THEMES.map(t => `<div class="swatch ${s.accent===t.id?'active':''}" style="background:${t.accent}" data-accent="${t.id}" title="${t.label}"></div>`).join("")}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Autosave</div></div>
+    <div class="switch-row">
+      <div><div class="label">Autosave project changes</div><div class="desc">Fields save to localStorage as you type.</div></div>
+      <label class="switch"><input type="checkbox" id="setAutosave" ${s.autosave?'checked':''}><span class="track"></span></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Discord / support button (global default)</div></div>
+    <div class="switch-row">
+      <div><div class="label">Enable by default on new projects</div><div class="desc">New launcher projects will start with this preference.</div></div>
+      <label class="switch"><input type="checkbox" id="setDiscordEnabled" ${s.discordEnabled?'checked':''}><span class="track"></span></label>
+    </div>
+    <div class="field" style="margin-top:10px;margin-bottom:0;">
+      <label>Default Discord / support URL</label>
+      <input type="text" id="setDiscordUrl" value="${escapeAttr(s.discordUrl)}" placeholder="https://discord.gg/yourserver">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Local data</div></div>
+    <p>All ${state.projects.length} project(s) are stored only in this browser's localStorage.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" id="exportAllSettingsBtn">Export all projects</button>
+      <button class="btn btn-outline btn-sm" id="importSettingsBtn">Import project JSON</button>
+      <button class="btn btn-danger btn-sm" id="resetAllBtn">Reset local projects</button>
+    </div>
+  </div>
+  `;
+}
+function bindSettingsEvents(){
+  const s = state.settings;
+  document.getElementById("setDark").addEventListener("change", (e) => { s.theme = e.target.checked ? "dark":"light"; saveSettings(s); render(); });
+  document.getElementById("setCompact").addEventListener("change", (e) => { s.compact = e.target.checked; saveSettings(s); render(); });
+  document.getElementById("setAnim").addEventListener("change", (e) => { s.animations = e.target.checked; saveSettings(s); render(); });
+  document.getElementById("setAutosave").addEventListener("change", (e) => { s.autosave = e.target.checked; saveSettings(s); toast("Autosave " + (s.autosave?"enabled":"disabled"), "info"); });
+  document.getElementById("setDiscordEnabled").addEventListener("change", (e) => { s.discordEnabled = e.target.checked; saveSettings(s); });
+  document.getElementById("setDiscordUrl").addEventListener("change", (e) => { s.discordUrl = e.target.value.trim(); saveSettings(s); });
+  document.querySelectorAll("[data-accent]").forEach(el => {
+    el.addEventListener("click", () => { s.accent = el.getAttribute("data-accent"); saveSettings(s); render(); toast("Accent updated", "success"); });
+  });
+  document.getElementById("exportAllSettingsBtn").addEventListener("click", () => { downloadJson(state.projects, "vynixforge-projects.json"); toast("Exported all projects", "success"); });
+  document.getElementById("importSettingsBtn").addEventListener("click", openImportModal);
+  document.getElementById("resetAllBtn").addEventListener("click", () => {
+    openModal({
+      title:"Reset local projects",
+      bodyHtml:`<p>This permanently deletes <b>all ${state.projects.length} project(s)</b> stored in this browser. Export a backup first if you might need them.</p>`,
+      actions:[
+        {id:"cancel", label:"Cancel", cls:"btn-ghost", onClick:closeModal},
+        {id:"reset", label:"Delete everything", cls:"btn-danger", onClick:() => {
+          state.projects = []; persistProjects(); closeModal(); toast("All local projects deleted", "info"); go("#/dashboard");
+        }}
+      ]
+    });
+  });
+}
+
+/* ===================== ABOUT ===================== */
+function renderAbout(){
+  return `
+  <div class="about-hero">
+    <div class="brand-mark" style="margin-inline:auto;"><svg viewBox="0 0 20 20" fill="#1a0e05"><path d="M10 2l1.6 3.3L15 6l-2.4 2.6L13 12l-3-1.7L7 12l.4-3.4L5 6l3.4-.7z"/></svg></div>
+    <h1>VynixForge</h1>
+    <p style="max-width:520px;margin:8px auto 0;">Vynix Studio's web-based Minecraft Launcher Builder.</p>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">What VynixForge is</div></div>
+    <p>VynixForge helps creators configure and customize their own Minecraft launcher projects — from Minecraft version and mod loader, through mods, resource packs and shaders, to full visual branding — and preview the result before requesting a build.</p>
+    <p>Every project is a structured configuration: it can be edited, duplicated, exported as JSON, and eventually handed to a real build service to produce a Windows <code>.exe</code>.</p>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">What VynixForge is not</div></div>
+    <p>VynixForge is not a mod discovery or distribution platform. It doesn't host, index, or download mods, resource packs, or shaders on your behalf — you supply the names, versions and source URLs, and a connected build service (or your own pipeline) is responsible for fetching and packaging them.</p>
+    <p>This frontend never fabricates a finished build. If no build service is connected, VynixForge says so clearly rather than pretending an .exe exists.</p>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Vynix Studio</div></div>
+    <p>VynixForge is built and maintained by Vynix Studio.</p>
+  </div>
+  `;
+}
+
+/* ===================== INIT ===================== */
+function seedIfEmpty(){
+  // No fake/demo project data is injected — first-run shows a real empty state.
+}
+window.addEventListener("error", (e) => {
+  console.error("VynixForge error:", e.error || e.message);
+});
+document.addEventListener("DOMContentLoaded", () => {
+  seedIfEmpty();
+  applySettingsToDom();
+  render();
+});
+// In case the script runs after DOMContentLoaded already fired
+if(document.readyState === "complete" || document.readyState === "interactive"){
+  seedIfEmpty();
+  applySettingsToDom();
+  render();
+}
+</script>
+</body>
+</html>
+
