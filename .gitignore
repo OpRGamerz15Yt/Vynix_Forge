@@ -1,6 +1,0 @@
-.env
-.env.*
-!.env.example
-vynix.sqlite
-vynix.sqlite-shm
-vynix.sqlite-wal
