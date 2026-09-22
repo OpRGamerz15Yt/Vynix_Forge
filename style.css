@@ -479,7 +479,30 @@ hr.rule{ border:none; border-top:1px solid var(--border-soft); margin:18px 0; }
 .about-hero .brand-mark svg{ width:28px; height:28px; }
 .about-hero h1{ font-size:26px; }
 
+.type-card{
+  background:var(--bg-1); border:1px solid var(--border-soft); border-radius:var(--radius-lg);
+  padding:20px; cursor:pointer;
+}
+.type-card:hover{ border-color:var(--border); }
+.type-card.active{ border-color:var(--ember); box-shadow:0 0 0 1px var(--ember) inset; background:var(--ember-glow); }
+.type-card-icon{ width:38px; height:38px; border-radius:10px; background:var(--bg-3); display:flex; align-items:center; justify-content:center; margin-bottom:12px; }
+.type-card-icon svg{ width:19px; height:19px; color:var(--ember); }
+.type-card-title{ font-family:var(--font-display); font-size:17px; font-weight:700; }
+.type-card-tagline{ font-size:12px; color:var(--text-2); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px; font-weight:600; }
+.type-card p{ font-size:13px; margin-bottom:14px; }
+.type-badge{ display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:700; background:var(--ember-glow); color:var(--ember); border:1px solid rgba(255,122,51,.3); }
+.type-badge.modded{ background:var(--info-bg); color:var(--info); border-color:rgba(99,183,214,.3); }
+
+/* ===================== OUTPUT CARDS (Build page) ===================== */
+.output-card{ border:1px solid var(--border-soft); border-radius:var(--radius-lg); padding:20px; background:var(--bg-1); margin-bottom:16px; }
+.output-card .oc-head{ display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+.output-card .oc-icon{ width:38px; height:38px; border-radius:10px; background:var(--bg-3); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.output-card .oc-icon svg{ width:18px; height:18px; }
+.output-card .oc-title{ font-family:var(--font-display); font-weight:700; font-size:15.5px; }
+.output-card .oc-format{ font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
+
 /* ===================== MOBILE ===================== */
+
 .overlay-scrim{ display:none; }
 @media (max-width: 900px){
   .sidebar{ position:fixed; left:0; top:0; transform:translateX(-100%); transition:transform .22s ease; box-shadow:var(--shadow-lift); }
