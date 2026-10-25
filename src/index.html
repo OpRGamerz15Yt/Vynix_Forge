@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>VynixForge Launcher</title>
+  <style>
+    body { font-family: sans-serif; background: #121110; color: #f4eee2; text-align: center; padding: 40px; }
+    button { background: #ff7a33; border: none; padding: 12px 24px; font-size: 16px; cursor: pointer; border-radius: 6px; }
+    input { padding: 8px; margin: 10px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>VynixForge Launcher</h1>
+  <p>Minecraft 1.21.1</p>
+  <input id="username" placeholder="Username" value="Player">
+  <br>
+  <button onclick="launch()">Launch Minecraft</button>
+  <p id="status"></p>
+  <script>
+    const { ipcRenderer } = require('electron');
+    async function launch() {
+      const username = document.getElementById('username').value;
+      document.getElementById('status').textContent = 'Launching...';
+      const result = await ipcRenderer.invoke('launch-game', username);
+      document.getElementById('status').textContent = result.success ? 'Launched!' : 'Error: ' + result.error;
+    }
+  </script>
+</body>
+</html>
